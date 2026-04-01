@@ -1,0 +1,12 @@
+[package]
+name = "headtrack-input-linuxtrack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bridge to LinuxTrack X-IR daemon IPC (TrackIR, PS3 Eye, Wiimote)"
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

@@ -1,0 +1,19 @@
+#!/bin/bash
+# AppImage entry point — bundles both headtrackd and headtrack-gui.
+#
+# Dispatch is based on the name used to invoke the AppImage ($ARGV0 is set
+# by the AppImage runtime when launched via a symlink):
+#
+#   headtrack-rs.AppImage          → headtrack-gui  (default)
+#   symlink named "headtrackd"     → headtrackd  (power user / standalone)
+#
+# appimagetool sets APPDIR to the mounted squashfs root.
+export APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
+export LD_LIBRARY_PATH="$APPDIR/lib:${LD_LIBRARY_PATH}"
+
+CMD=$(basename "${ARGV0:-$0}")
+if [[ "$CMD" == headtrackd* ]]; then
+    exec "$APPDIR/usr/bin/headtrackd" "$@"
+else
+    exec "$APPDIR/usr/bin/headtrack-gui" "$@"
+fi

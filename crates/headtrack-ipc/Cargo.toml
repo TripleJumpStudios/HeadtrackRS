@@ -1,0 +1,15 @@
+[package]
+name = "headtrack-ipc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Unix domain socket IPC: pose framing, server, and client"
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

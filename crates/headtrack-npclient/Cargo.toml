@@ -1,0 +1,34 @@
+# Standalone crate — NOT in the workspace (different target, different deps).
+# Build from repo root:
+#   cargo build --manifest-path crates/headtrack-npclient/Cargo.toml \
+#               --target x86_64-pc-windows-gnu --release
+# Output: target/x86_64-pc-windows-gnu/release/NPClient64.dll
+# Install: copy to game's Bin64/ directory.
+[workspace]
+
+[package]
+name = "headtrack-npclient"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "NPClient64"
+crate-type = ["cdylib"]
+
+[dependencies]
+winapi = { version = "0.3", features = [
+    "fileapi",
+    "handleapi",
+    "libloaderapi",
+    "memoryapi",
+    "winbase",
+    "minwindef",
+    "processthreadsapi",
+    "synchapi",
+    "winnt",
+    "winuser",
+    "winsock2",
+    "ws2def",
+    "ws2ipdef",
+    "ws2tcpip",
+] }

@@ -1,0 +1,13 @@
+[package]
+name = "headtrack-output-wine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Wine shared memory bridge for Star Citizen and Proton games (FT_SharedMem / POSIX shm)"
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+libc = "0.2"

@@ -1,0 +1,16 @@
+[package]
+name = "headtrack-xplane"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "X-Plane 12 plugin — writes camera DataRefs from daemon pose stream"
+
+[lib]
+# Produces lin.xpl for X-Plane's plugin loader.
+crate-type = ["cdylib"]
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+headtrack-ipc = { path = "../headtrack-ipc" }
+bincode = { workspace = true }
+tracing = { workspace = true }

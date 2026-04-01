@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Headtrack RS
+Exec=headtrack-gui
+Icon=headtrack-rs
+Categories=Utility;Game;

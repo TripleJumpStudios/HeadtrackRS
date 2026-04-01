@@ -1,0 +1,15 @@
+[Unit]
+Description=headtrack-rs head tracking daemon
+Documentation=https://github.com/jeremy/headtrack-rs
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/headtrackd
+Restart=on-failure
+RestartSec=3s
+Environment=RUST_LOG=warn
+
+[Install]
+WantedBy=graphical-session.target

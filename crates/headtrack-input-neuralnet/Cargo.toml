@@ -1,0 +1,28 @@
+[package]
+name = "headtrack-input-neuralnet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Webcam AI tracking via ort (ONNX Runtime) and nokhwa V4L2 capture"
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# ONNX Runtime Rust bindings.
+# ONNX Runtime must be available at link time.  For development, install it
+# via your distro (libonnxruntime) or set ORT_DYLIB_PATH to the .so.
+# AppImage packaging will bundle the runtime; see packaging/appimage/.
+ort = "2.0.0-rc.12"
+
+# Webcam capture via V4L2.
+nokhwa = { version = "0.10", features = ["input-native"] }
+
+# Raw V4L2 fallback for cameras that crash nokhwa's format enumeration
+# (e.g. Delan Cam 1 reports fractional frame rates).
+v4l = "0.14"
+
+# Image manipulation: grayscale conversion, resize, crop.
+image = { version = "0.25", default-features = false, features = ["jpeg"] }

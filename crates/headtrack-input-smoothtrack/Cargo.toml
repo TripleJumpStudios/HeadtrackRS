@@ -1,0 +1,12 @@
+[package]
+name = "headtrack-input-smoothtrack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "UDP receiver for SmoothTrack / opentrack-compatible phone apps (port 4242)"
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

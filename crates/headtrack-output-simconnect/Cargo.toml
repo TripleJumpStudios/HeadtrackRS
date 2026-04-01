@@ -1,0 +1,13 @@
+[package]
+name = "headtrack-output-simconnect"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

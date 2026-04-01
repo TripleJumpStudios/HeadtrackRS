@@ -1,0 +1,16 @@
+[package]
+name = "headtrack-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "headtrack-rs engine: camera, ONNX, pipeline, outputs, IPC server"
+
+[dependencies]
+headtrack-core             = { path = "../headtrack-core" }
+headtrack-ipc              = { path = "../headtrack-ipc" }
+headtrack-input-neuralnet  = { path = "../headtrack-input-neuralnet" }
+headtrack-output-wine      = { path = "../headtrack-output-wine" }
+headtrack-output-simconnect = { path = "../headtrack-output-simconnect" }
+tokio                      = { workspace = true }
+anyhow                     = { workspace = true }
+tracing                    = { workspace = true }

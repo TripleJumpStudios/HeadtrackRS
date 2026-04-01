@@ -1,0 +1,20 @@
+[package]
+name = "headtrack-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "headtrack-rs daemon: headless wrapper around headtrack-engine"
+
+default-run = "headtrackd"
+
+[[bin]]
+name = "headtrackd"
+path = "src/main.rs"
+
+[dependencies]
+headtrack-engine   = { path = "../headtrack-engine" }
+headtrack-ipc      = { path = "../headtrack-ipc" }
+tokio              = { workspace = true }
+anyhow             = { workspace = true }
+tracing-subscriber = { workspace = true }
+ctrlc              = "3.4"

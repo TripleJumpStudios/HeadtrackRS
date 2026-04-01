@@ -1,0 +1,49 @@
+[workspace]
+members = [
+    "crates/headtrack-core",
+    "crates/headtrack-engine",
+    "crates/headtrack-ipc",
+    "crates/headtrack-daemon",
+    "crates/headtrack-xplane",
+    "crates/headtrack-input-neuralnet",
+    "crates/headtrack-input-smoothtrack",
+    "crates/headtrack-input-linuxtrack",
+    "crates/headtrack-output-wine",
+    "crates/headtrack-output-udp",
+    "crates/headtrack-output-simconnect",
+    "crates/headtrack-tester",
+    "crates/headtrack-gui",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+# Optimize external deps in debug builds — critical for image processing throughput.
+# Pure-Rust JPEG decode (nokhwa + image crate) is 5-10x slower at opt-level=0,
+# which drops the C920 from ~30 Hz to ~17 Hz.  opt-level=1 for workspace code
+# helps to_gray() and other hot loops without significantly increasing build time.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+bincode = "1"
+toml = "0.8"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

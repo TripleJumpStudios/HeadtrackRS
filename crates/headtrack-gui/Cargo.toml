@@ -1,0 +1,20 @@
+[package]
+name = "headtrack-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "headtrack-rs GUI — runs the engine in-process for zero-latency state sharing"
+
+[[bin]]
+name = "headtrack-gui"
+path = "src/main.rs"
+
+[dependencies]
+headtrack-engine = { path = "../headtrack-engine" }
+headtrack-core   = { path = "../headtrack-core" }
+eframe           = "0.31"
+image            = { version = "0.25", default-features = false, features = ["jpeg"] }
+ksni             = { version = "0.3", features = ["blocking", "tokio"], default-features = false }
+rfd              = "0.17"
+tracing          = { workspace = true }
+v4l              = "0.14"
