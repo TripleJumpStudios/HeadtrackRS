@@ -16,6 +16,9 @@ use crate::{
     v4l2_capture::V4l2Camera,
 };
 
+/// Return type for [`Tracker::step_with_frame`]: pose + optional RGB preview frame.
+type StepFrame = (Option<RawPose>, Option<ImageBuffer<Rgb<u8>, Vec<u8>>>);
+
 /// Frames since last good pose before the localizer is re-run from scratch.
 const LOCALIZER_RERUN_AFTER_MISSES: u32 = 10;
 
@@ -215,7 +218,7 @@ impl Tracker {
         let t_total = t0.elapsed();
 
         self.step_count += 1;
-        if self.step_count % 30 == 0 {
+        if self.step_count.is_multiple_of(30) {
             info!(
                 "step timing: cap={:.1}ms gray={:.1}ms infer={:.1}ms total={:.1}ms",
                 t_cap.as_secs_f64() * 1000.0,
@@ -228,7 +231,7 @@ impl Tracker {
     }
 
     /// Like [`step`] but also returns the raw RGB frame for preview.
-    pub fn step_with_frame(&mut self) -> (Option<RawPose>, Option<ImageBuffer<Rgb<u8>, Vec<u8>>>) {
+    pub fn step_with_frame(&mut self) -> StepFrame {
         let rgb_frame = match self.capture() {
             Ok(f) => f,
             Err(e) => {

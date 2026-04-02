@@ -15,8 +15,8 @@
 //! - y:     mm, up = positive           ← matches headtrack-rs canonical ✓
 //! - z:     mm, toward screen = positive← matches headtrack-rs canonical ✓
 //! - x:     mm, right = positive        ← SIGN_X = -1.0 (same empirical flip
-//!          as X-Plane; headtrack-rs canonical X is mirrored vs world-space.
-//!          Change SIGN_X to 1.0 if lateral movement is inverted in-game.)
+//!   as X-Plane; headtrack-rs canonical X is mirrored vs world-space.
+//!   Change SIGN_X to 1.0 if lateral movement is inverted in-game.)
 
 use headtrack_core::Pose;
 use libc::{

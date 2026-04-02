@@ -62,6 +62,10 @@ pub struct PreviewSlot {
     ptr: AtomicPtr<Vec<u8>>,
 }
 
+impl Default for PreviewSlot {
+    fn default() -> Self { Self::new() }
+}
+
 impl PreviewSlot {
     pub fn new() -> Self {
         Self { ptr: AtomicPtr::new(std::ptr::null_mut()) }
@@ -274,7 +278,7 @@ impl NeuralNetInput {
                     let mut frame_counter: u32 = 0;
                     loop {
                         frame_counter = frame_counter.wrapping_add(1);
-                        let want_frame = frame_counter % 3 == 0;
+                        let want_frame = frame_counter.is_multiple_of(3);
 
                         if want_frame {
                             let (pose, frame) = tracker.step_with_frame();
@@ -453,7 +457,7 @@ impl NeuralNetInput {
 
                     // Every 3rd frame, also produce RGB for preview.
                     frame_counter = frame_counter.wrapping_add(1);
-                    let want_preview = frame_counter % 3 == 0;
+                    let want_preview = frame_counter.is_multiple_of(3);
 
                     if want_preview {
                         let rgb = yuyv_to_rgb(&yuyv, res_w, res_h);
@@ -463,7 +467,7 @@ impl NeuralNetInput {
                         let t_total = t0.elapsed();
 
                         step_count += 1;
-                        if step_count % 30 == 0 {
+                        if step_count.is_multiple_of(30) {
                             info!(
                                 "yuyv step: gray={:.1}ms infer={:.1}ms total={:.1}ms",
                                 t_gray.as_secs_f64() * 1000.0,
@@ -491,7 +495,7 @@ impl NeuralNetInput {
                         let t_total = t0.elapsed();
 
                         step_count += 1;
-                        if step_count % 30 == 0 {
+                        if step_count.is_multiple_of(30) {
                             info!(
                                 "yuyv step: gray={:.1}ms infer={:.1}ms total={:.1}ms",
                                 t_gray.as_secs_f64() * 1000.0,

@@ -313,18 +313,24 @@ pub unsafe extern "C" fn XPluginStart(
     1
 }
 
+/// # Safety
+/// Called by X-Plane on plugin shutdown; all X-Plane APIs are valid at this point.
 #[no_mangle]
 pub unsafe extern "C" fn XPluginStop() {
     XPLMUnregisterFlightLoopCallback(flight_loop, std::ptr::null_mut());
     debug("headtrack-rs: plugin stopped\n");
 }
 
+/// # Safety
+/// Called by X-Plane when the plugin is enabled; X-Plane APIs are valid.
 #[no_mangle]
 pub unsafe extern "C" fn XPluginEnable() -> i32 {
     ENABLED.store(true, Ordering::Relaxed);
     1
 }
 
+/// # Safety
+/// Called by X-Plane when the plugin is disabled; X-Plane APIs are valid.
 #[no_mangle]
 pub unsafe extern "C" fn XPluginDisable() {
     ENABLED.store(false, Ordering::Relaxed);
@@ -333,6 +339,8 @@ pub unsafe extern "C" fn XPluginDisable() {
 /// X-Plane message IDs.
 const XPLM_MSG_PLANE_LOADED: i32 = 102;
 
+/// # Safety
+/// Called by X-Plane with a valid message ID; `_param` lifetime is managed by X-Plane.
 #[no_mangle]
 pub unsafe extern "C" fn XPluginReceiveMessage(
     _from: i32,

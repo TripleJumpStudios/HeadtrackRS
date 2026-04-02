@@ -63,12 +63,12 @@ use tracing::{info, warn};
 /// Signs and axis mapping are empirical — verify in-cockpit and adjust.
 fn pose_to_simconnect(pose: &Pose) -> [f32; 6] {
     [
-        pose.x as f32 / 1000.0,
-        pose.y as f32 / 1000.0,
-        pose.z as f32 / 1000.0,
-        pose.pitch as f32, // SimConnect uses degrees directly for these
-        pose.roll as f32,
-        pose.yaw as f32,
+        pose.x / 1000.0,
+        pose.y / 1000.0,
+        pose.z / 1000.0,
+        pose.pitch, // SimConnect uses degrees directly for these
+        pose.roll,
+        pose.yaw,
     ]
 }
 

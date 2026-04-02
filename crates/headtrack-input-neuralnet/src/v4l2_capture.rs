@@ -136,7 +136,7 @@ impl V4l2Camera {
             .into_rgb8();
         let t_dec = t0.elapsed() - t_cap;
 
-        if self.frame_count % 30 == 0 {
+        if self.frame_count.is_multiple_of(30) {
             info!(
                 "v4l2 frame: cap={:.1}ms decode={:.1}ms jpeg={}KB",
                 t_cap.as_secs_f64() * 1000.0,
@@ -240,7 +240,7 @@ impl V4l2YuyvCamera {
         if t_cap.as_millis() > 300 {
             warn!("yuyv capture stall: {:.0}ms (camera may have frozen)", t_cap.as_millis());
         }
-        if self.frame_count % 30 == 0 {
+        if self.frame_count.is_multiple_of(30) {
             info!(
                 "v4l2 yuyv frame: cap={:.1}ms size={}KB",
                 t_cap.as_secs_f64() * 1000.0,

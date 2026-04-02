@@ -112,10 +112,10 @@ fn bar(value: f32, max: f32) -> String {
     let pos = pos.clamp(0, (total - 1) as isize) as usize;
 
     if pos > BAR_HALF {
-        for i in (BAR_HALF + 1)..=pos { buf[i] = b'-'; }
+        for b in &mut buf[(BAR_HALF + 1)..=pos] { *b = b'-'; }
         buf[pos] = b'*';
     } else if pos < BAR_HALF {
-        for i in pos..BAR_HALF { buf[i] = b'-'; }
+        for b in &mut buf[pos..BAR_HALF] { *b = b'-'; }
         buf[pos] = b'*';
     } else {
         buf[BAR_HALF] = b'*';
@@ -601,7 +601,7 @@ async fn main() -> Result<()> {
     }
 
     disable_raw_mode()?;
-    print!("\x1B[?25h\n");
+    println!("\x1B[?25h");
     io::stdout().flush()?;
     Ok(())
 }

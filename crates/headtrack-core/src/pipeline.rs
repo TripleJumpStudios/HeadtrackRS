@@ -84,6 +84,10 @@ pub mod stages {
         count: u8,
     }
 
+    impl Default for ZMedianStage {
+        fn default() -> Self { Self::new() }
+    }
+
     impl ZMedianStage {
         pub fn new() -> Self {
             Self { buf: [0.0; 3], idx: 0, count: 0 }
@@ -128,6 +132,10 @@ pub mod stages {
     pub struct AxisMaskStage {
         /// `true` = axis is active (passes through), `false` = paused (zeroed).
         pub active: [bool; 6],
+    }
+
+    impl Default for AxisMaskStage {
+        fn default() -> Self { Self::new() }
     }
 
     impl AxisMaskStage {
@@ -251,6 +259,10 @@ pub mod stages {
         sensitivity: [f32; 6],
     }
 
+    impl Default for ResponseCurveStage {
+        fn default() -> Self { Self::new() }
+    }
+
     impl ResponseCurveStage {
         pub fn new() -> Self {
             Self {
@@ -270,7 +282,7 @@ pub mod stages {
             if (e - 2.0).abs() < 0.001 { return x * x; }
             // x^e ≈ x * (1 + (e-1) * ln(x)), using IEEE 754 fast ln
             let bits = x.to_bits() as i32;
-            let ln_approx = (bits - 0x3F80_0000) as f32 * 8.2629582e-8;
+            let ln_approx = (bits - 0x3F80_0000) as f32 * 8.262_958e-8;
             x * (1.0 + (e - 1.0) * ln_approx)
         }
 
@@ -361,6 +373,10 @@ pub mod stages {
         pivot_mm: f32,
     }
 
+    impl Default for CrossAxisCompStage {
+        fn default() -> Self { Self::new() }
+    }
+
     impl CrossAxisCompStage {
         pub fn new() -> Self {
             Self {
@@ -442,6 +458,10 @@ pub mod stages {
         /// Max change per second for each axis [yaw, pitch, roll, x, y, z].
         max_rate: [f32; 6],
         prev: Option<Pose>,
+    }
+
+    impl Default for SlewLimitStage {
+        fn default() -> Self { Self::new() }
     }
 
     impl SlewLimitStage {
@@ -534,6 +554,10 @@ pub mod stages {
         drift_mult: [f32; 6],
         /// Velocity (deg/s or mm/s) below which the head is considered still.
         still_threshold: f32,
+    }
+
+    impl Default for CenterStage {
+        fn default() -> Self { Self::new() }
     }
 
     impl CenterStage {
@@ -651,6 +675,10 @@ pub mod stages {
     pub struct PredictionStage {
         filters: [ScalarKalman; 6],
         predict_ms: f32,
+    }
+
+    impl Default for PredictionStage {
+        fn default() -> Self { Self::new() }
     }
 
     impl PredictionStage {
@@ -777,6 +805,10 @@ pub mod stages {
     pub struct DeadzoneStage {
         /// Deadzone radius per axis [yaw°, pitch°, roll°, x mm, y mm, z mm].
         dz: [f32; 6],
+    }
+
+    impl Default for DeadzoneStage {
+        fn default() -> Self { Self::new() }
     }
 
     impl DeadzoneStage {

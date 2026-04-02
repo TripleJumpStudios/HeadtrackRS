@@ -525,7 +525,7 @@ async fn dispatch_cmd(
     source:           &mut Option<Box<dyn InputSource>>,
     current_camera:   &mut u32,
     current_fov:      &mut f32,
-    models_dir:       &PathBuf,
+    models_dir:       &std::path::Path,
     state:            &Arc<EngineState>,
     recorder:         &mut Option<DiagRecorder>,
     preview_shutdown: &mut Option<Arc<AtomicBool>>,

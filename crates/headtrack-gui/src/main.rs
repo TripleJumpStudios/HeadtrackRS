@@ -645,20 +645,20 @@ impl HeadtrackApp {
     fn apply_profile(&mut self, cfg: &ProfileConfig) {
         self.profile_name = cfg.name.clone();
 
-        for i in 0..6 {
+        for (i, &axis) in AXIS_NAMES.iter().enumerate() {
             self.axis_filter[i].min_cutoff = cfg.filter[i].min_cutoff;
             self.axis_filter[i].beta       = cfg.filter[i].beta;
-            self.send_set("one-euro-filter", &format!("{}.min_cutoff", AXIS_NAMES[i]), cfg.filter[i].min_cutoff);
-            self.send_set("one-euro-filter", &format!("{}.beta",       AXIS_NAMES[i]), cfg.filter[i].beta);
+            self.send_set("one-euro-filter", &format!("{axis}.min_cutoff"), cfg.filter[i].min_cutoff);
+            self.send_set("one-euro-filter", &format!("{axis}.beta"),       cfg.filter[i].beta);
 
             self.axis_curve[i].sensitivity = cfg.curve[i].sensitivity;
             self.axis_curve[i].exponent    = cfg.curve[i].exponent;
-            self.send_set("response-curve", &format!("{}.sensitivity", AXIS_NAMES[i]), cfg.curve[i].sensitivity);
-            self.send_set("response-curve", &format!("{}.exponent",    AXIS_NAMES[i]), cfg.curve[i].exponent);
+            self.send_set("response-curve", &format!("{axis}.sensitivity"), cfg.curve[i].sensitivity);
+            self.send_set("response-curve", &format!("{axis}.exponent"),    cfg.curve[i].exponent);
 
             self.deadzone[i] = cfg.deadzone[i];
-            self.send_set("deadzone",    AXIS_NAMES[i], cfg.deadzone[i]);
-            self.send_set("slew-limit",  AXIS_NAMES[i], cfg.slew_limit[i]);
+            self.send_set("deadzone",   axis, cfg.deadzone[i]);
+            self.send_set("slew-limit", axis, cfg.slew_limit[i]);
         }
 
         self.yaw_to_pitch = cfg.cross_axis.yaw_to_pitch;
@@ -1146,7 +1146,7 @@ impl SplashScreen {
             } else {
                 "OPENING CAMERA..."
             };
-            if (elapsed * 3.0) as u32 % 2 == 0 {
+            if ((elapsed * 3.0) as u32).is_multiple_of(2) {
                 painter.text(
                     center + egui::Vec2::new(0.0, outer_r + 62.0),
                     egui::Align2::CENTER_CENTER,
@@ -1208,13 +1208,11 @@ impl eframe::App for AppWrapper {
         let _ = self.tray_ctx.set(ctx.clone());
 
         // Minimize to tray when the user clicks the window close button (if enabled).
-        if ctx.input(|i| i.viewport().close_requested()) {
-            if CameraConfig::load().minimize_to_tray {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-            }
-            // If minimize_to_tray is false, let the close proceed normally.
+        if ctx.input(|i| i.viewport().close_requested()) && CameraConfig::load().minimize_to_tray {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
         }
+        // If minimize_to_tray is false, let the close proceed normally.
         // Tray "Show" clicked — restore from minimized and focus.
         if self.tray_show.swap(false, Ordering::Relaxed) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -1485,9 +1483,9 @@ impl HeadtrackApp {
                 .clicked()
             {
                 self.tracking_enabled = !self.tracking_enabled;
-                for i in 0..6 {
+                for (i, &axis) in AXIS_NAMES.iter().enumerate() {
                     let v = if self.tracking_enabled && self.axis_active[i] { 1.0 } else { 0.0 };
-                    self.send_set("axis-mask", AXIS_NAMES[i], v);
+                    self.send_set("axis-mask", axis, v);
                 }
             }
 
@@ -2001,17 +1999,17 @@ impl HeadtrackApp {
                     let mut applied = 0u32;
                     for desc in &self.v4l2_controls {
                         let n = desc.name.to_lowercase();
-                        if n.contains("exposure") && n.contains("priority") {
-                            if dev.set_control(v4l::control::Control {
-                                id: desc.id,
-                                value: v4l::control::Value::Boolean(false),
-                            }).is_ok() { applied += 1; }
+                        if n.contains("exposure") && n.contains("priority") && dev.set_control(v4l::control::Control {
+                            id: desc.id,
+                            value: v4l::control::Value::Boolean(false),
+                        }).is_ok() {
+                            applied += 1;
                         }
-                        if n == "auto exposure" || n == "exposure, auto" {
-                            if dev.set_control(v4l::control::Control {
-                                id: desc.id,
-                                value: v4l::control::Value::Integer(1),
-                            }).is_ok() { applied += 1; }
+                        if (n == "auto exposure" || n == "exposure, auto") && dev.set_control(v4l::control::Control {
+                            id: desc.id,
+                            value: v4l::control::Value::Integer(1),
+                        }).is_ok() {
+                            applied += 1;
                         }
                     }
                     if let Ok(controls) = dev.query_controls() {
