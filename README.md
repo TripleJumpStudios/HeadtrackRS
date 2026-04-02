@@ -132,17 +132,12 @@ This project uses AI-assisted development to accelerate implementation. To ensur
 
 ## Roadmap
 
-### In Progress
-- MSFS 2024 in-game integration testing and sign-off
-- GUI polish: FOV presets per camera, output plugin installer wizard
-- Minimize-to-tray support
-- Proper app icon
-
 ### Up Next
 - **Per-camera profiles** — automatically apply the right settings when you switch cameras
 - **Profile auto-switching** — load the right profile when a game is detected
 - **IR point tracking** — for IR LED clips (Delan Cam, etc.), faster and cleaner than webcam-only tracking
 - **Flatpak packaging** — native Flatpak distribution
+- **Thorough integration testing** — extended in-sim sessions across all three simulators to validate and improve default settings
 
 ### Future
 - Alternative pose models for better accuracy at extreme head angles (looking over your shoulder)
