@@ -7,7 +7,7 @@
 
 Head tracking for Linux flight simulation — webcam-based, no extra hardware required.
 
-Built natively in Rust for Linux. Not a wrapper around opentrack.
+Built natively in Rust for Linux. Not a wrapper around Opentrack.
 
 > **Early Development** — HeadtrackRS is functional but actively developed. You may encounter bugs or rough edges. Bug reports and feedback are welcome via [GitHub Issues](../../issues).
 
@@ -36,9 +36,9 @@ The GUI is the single entry point. Launch it and everything starts — the track
 
 ---
 
-## Why Not Just Use opentrack?
+## Why Not Just Use Opentrack?
 
-opentrack is a great project, but it runs on Windows. Running it through Wine on Linux introduces latency, compatibility headaches, and fragility — especially for modern games like Star Citizen and MSFS 2024 that use Proton.
+Opentrack is a great project, but it runs on Windows. Running it through Wine on Linux introduces latency, compatibility headaches, and fragility — especially for modern games like Star Citizen and MSFS 2024 that use Proton.
 
 HeadtrackRS is a clean Linux-native implementation:
 
