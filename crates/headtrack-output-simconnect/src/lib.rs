@@ -50,6 +50,7 @@ pub mod connection;
 pub mod protocol;
 
 use headtrack_core::Pose;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use tokio::sync::watch;
 use tracing::{info, warn};
 
@@ -62,12 +63,26 @@ use tracing::{info, warn};
 ///
 /// Signs and axis mapping are empirical — verify in-cockpit and adjust.
 fn pose_to_simconnect(pose: &Pose) -> [f32; 6] {
+    // Priority 1: Coordinate Frame Test
+    // Toggle this to test if MSFS CameraSetRelative6DOF is camera-relative.
+    // If true, this rotates translational X/Z to cancel out camera-relative movement.
+    let apply_camera_relative_fix = false;
+
+    let (out_x, out_z) = if apply_camera_relative_fix {
+        let yaw_rad = pose.yaw.to_radians();
+        let x_corrected = pose.x * yaw_rad.cos() + pose.z * yaw_rad.sin();
+        let z_corrected = -pose.x * yaw_rad.sin() + pose.z * yaw_rad.cos();
+        (x_corrected, z_corrected)
+    } else {
+        (pose.x, pose.z)
+    };
+
     [
-        pose.x / 1000.0,
+        -out_x / 1000.0,   // X: inverted vs headtrack-rs canonical (verified 2026-04-03)
         pose.y / 1000.0,
-        pose.z / 1000.0,
-        pose.pitch, // SimConnect uses degrees directly for these
-        pose.roll,
+        out_z / 1000.0,
+        pose.pitch,
+        -pose.roll,        // roll: inverted vs headtrack-rs canonical (verified 2026-04-03)
         pose.yaw,
     ]
 }
@@ -81,7 +96,7 @@ const FRAME_EVENT_ID: u32 = 1;
 /// Request ID used for CameraAcquire.
 const CAMERA_REQUEST_ID: u32 = 1;
 
-async fn run_connection(addr: String, pose_rx: watch::Receiver<Pose>) {
+async fn run_connection(addr: String, pose_rx: watch::Receiver<Pose>, connected: Arc<AtomicBool>) {
     loop {
         info!("SimConnect: connecting to {addr}");
 
@@ -142,6 +157,7 @@ async fn run_connection(addr: String, pose_rx: watch::Receiver<Pose>) {
         }
 
         info!("SimConnect: connected — sim version {major}.{minor}.{build}");
+        connected.store(true, Ordering::Relaxed);
 
         // Subscribe to Frame events.
         let sub_pkt = protocol::build_packet(
@@ -201,6 +217,7 @@ async fn run_connection(addr: String, pose_rx: watch::Receiver<Pose>) {
         );
         let _ = conn.send_packet(&release_pkt).await;
 
+        connected.store(false, Ordering::Relaxed);
         warn!("SimConnect: disconnected ({disconnect_reason}) — retrying in 2s");
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     }
@@ -216,6 +233,7 @@ async fn run_connection(addr: String, pose_rx: watch::Receiver<Pose>) {
 /// task maintains the connection and sends poses on each sim Frame event.
 pub struct SimConnectOutput {
     tx: watch::Sender<Pose>,
+    connected: Arc<AtomicBool>,
 }
 
 impl SimConnectOutput {
@@ -224,17 +242,21 @@ impl SimConnectOutput {
     /// `port` is the TCP port configured in SimConnect.xml (default 5557).
     pub fn open(port: u16) -> anyhow::Result<Self> {
         let (tx, rx) = watch::channel(Pose::zero(0));
+        let connected = Arc::new(AtomicBool::new(false));
         let addr = format!("127.0.0.1:{port}");
-        tokio::spawn(run_connection(addr, rx));
-        Ok(Self { tx })
+        tokio::spawn(run_connection(addr, rx, Arc::clone(&connected)));
+        Ok(Self { tx, connected })
+    }
+
+    /// Returns `true` while MSFS is connected and the Camera API handshake has succeeded.
+    #[inline]
+    pub fn is_connected(&self) -> bool {
+        self.connected.load(Ordering::Relaxed)
     }
 
     /// Push the latest pose to the background task (non-blocking).
     #[inline]
     pub fn write(&self, pose: &Pose) {
-        // watch::Sender::send_modify avoids an allocation; ignore send errors
-        // (they only occur if all receivers are dropped, which can't happen here
-        // because `run_connection` holds one).
         let _ = self.tx.send(*pose);
     }
 }

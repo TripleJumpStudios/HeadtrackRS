@@ -21,6 +21,11 @@ pub trait PipelineStage: Send + 'static {
     fn set_param(&mut self, _param: &str, _value: f32) -> bool {
         false
     }
+
+    /// Returns a list of all current parameters for this stage.
+    fn get_params(&self) -> Vec<(String, f32)> {
+        Vec::new()
+    }
 }
 
 /// An ordered chain of [`PipelineStage`]s.
@@ -61,6 +66,19 @@ impl Pipeline {
         false
     }
 
+    /// Returns a snapshot of all parameters from all stages.
+    /// Format: `(stage_name, param_name, current_value)`.
+    pub fn get_all_params(&self) -> Vec<(String, String, f32)> {
+        let mut out = Vec::new();
+        for s in &self.stages {
+            let name = s.name().to_string();
+            for (p, v) in s.get_params() {
+                out.push((name.clone(), p, v));
+            }
+        }
+        out
+    }
+
     pub fn stage_names(&self) -> impl Iterator<Item = &str> {
         self.stages.iter().map(|s| s.name())
     }
@@ -78,19 +96,34 @@ pub mod stages {
     /// Only filters Z; all other axes pass through unchanged.
     /// A median of 3 is the simplest non-linear filter that rejects
     /// single-frame outliers with zero latency on real movement.
-    pub struct ZMedianStage {
-        buf: [f32; 3],
-        idx: usize,
-        count: u8,
+    /// Per-axis 3-sample median filter for single-frame outlier rejection.
+    ///
+    /// Enabled axes are independently median-filtered; disabled axes pass through.
+    /// Default: pitch and Z enabled (the two axes most prone to NeuralNet outliers).
+    ///
+    /// Parameters via `set_param`:
+    /// - `"yaw"`, `"pitch"`, `"roll"`, `"x"`, `"y"`, `"z"` — 1.0 to enable, 0.0 to disable
+    pub struct MedianFilterStage {
+        bufs:    [[f32; 3]; 6],
+        idx:     [usize; 6],
+        count:   [u8; 6],
+        enabled: [bool; 6],
     }
 
-    impl Default for ZMedianStage {
+    impl Default for MedianFilterStage {
         fn default() -> Self { Self::new() }
     }
 
-    impl ZMedianStage {
+    impl MedianFilterStage {
+        /// pitch (index 1) and Z (index 5) enabled by default.
         pub fn new() -> Self {
-            Self { buf: [0.0; 3], idx: 0, count: 0 }
+            Self {
+                bufs:    [[0.0; 3]; 6],
+                idx:     [0; 6],
+                count:   [0; 6],
+                //          yaw    pitch  roll   x      y      z
+                enabled: [false, true,  false, false, false, true],
+            }
         }
 
         /// Branchless median of 3 values via min/max.
@@ -102,26 +135,53 @@ pub mod stages {
         }
     }
 
-    impl PipelineStage for ZMedianStage {
-        fn name(&self) -> &str { "z-median" }
+    impl PipelineStage for MedianFilterStage {
+        fn name(&self) -> &str { "median-filter" }
 
-        fn process(&mut self, mut pose: Pose, _dt: f32) -> Pose {
-            self.buf[self.idx] = pose.z;
-            self.idx = (self.idx + 1) % 3;
-            if self.count < 3 {
-                self.count += 1;
+        fn process(&mut self, pose: Pose, _dt: f32) -> Pose {
+            let vals = [pose.yaw, pose.pitch, pose.roll, pose.x, pose.y, pose.z];
+            let mut out = vals;
+            for i in 0..6 {
+                if !self.enabled[i] { continue; }
+                self.bufs[i][self.idx[i]] = vals[i];
+                self.idx[i] = (self.idx[i] + 1) % 3;
+                if self.count[i] < 3 { self.count[i] += 1; }
+                if self.count[i] >= 3 {
+                    out[i] = Self::median3(self.bufs[i][0], self.bufs[i][1], self.bufs[i][2]);
+                }
             }
-            if self.count >= 3 {
-                pose.z = Self::median3(self.buf[0], self.buf[1], self.buf[2]);
+            Pose {
+                yaw: out[0], pitch: out[1], roll: out[2],
+                x: out[3], y: out[4], z: out[5],
+                timestamp_us: pose.timestamp_us,
             }
-            pose
         }
 
         fn reset(&mut self) {
-            self.count = 0;
-            self.idx = 0;
+            self.idx   = [0; 6];
+            self.count = [0; 6];
+        }
+
+        fn set_param(&mut self, param: &str, value: f32) -> bool {
+            use crate::filter::AXIS_NAMES;
+            if let Some(idx) = AXIS_NAMES.iter().position(|&n| n == param) {
+                self.enabled[idx] = value > 0.5;
+                return true;
+            }
+            false
+        }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            AXIS_NAMES.iter().enumerate().map(|(i, &n)| {
+                (n.to_string(), if self.enabled[i] { 1.0 } else { 0.0 })
+            }).collect()
         }
     }
+
+    // Keep the old name as an alias so any external code that references it still compiles.
+    #[allow(dead_code)]
+    pub type ZMedianStage = MedianFilterStage;
 
     // ── Axis Mask (per-axis pause) ────────────────────────────────────────
 
@@ -174,6 +234,13 @@ pub mod stages {
             };
             self.active[idx] = value > 0.5;
             true
+        }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            AXIS_NAMES.iter().enumerate().map(|(i, &n)| {
+                (n.to_string(), if self.active[i] { 1.0 } else { 0.0 })
+            }).collect()
         }
     }
 
@@ -236,6 +303,16 @@ pub mod stages {
                 }
                 _ => false,
             }
+        }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            let mut out = Vec::new();
+            for (i, &n) in AXIS_NAMES.iter().enumerate() {
+                out.push((format!("{}.min_cutoff", n), self.filter.get_axis_param(i, "min_cutoff").unwrap_or(0.0)));
+                out.push((format!("{}.beta", n), self.filter.get_axis_param(i, "beta").unwrap_or(0.0)));
+            }
+            out
         }
     }
 
@@ -341,6 +418,16 @@ pub mod stages {
                 _ => false,
             }
         }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            let mut out = Vec::new();
+            for (i, &n) in AXIS_NAMES.iter().enumerate() {
+                out.push((format!("{}.exponent", n), self.exponent[i]));
+                out.push((format!("{}.sensitivity", n), self.sensitivity[i]));
+            }
+            out
+        }
     }
 
     // ── Cross-Axis Compensation ──────────────────────────────────────────
@@ -359,15 +446,25 @@ pub mod stages {
     /// - `"yaw_to_x"` — fraction of yaw change subtracted from X
     /// - `"z_to_y"` — fraction of Z change subtracted from Y
     /// - `"z_to_pitch"` — fraction of Z change subtracted from pitch
+    /// - `"roll_to_z"` — roll magnitude subtracted from Z
+    /// - `"roll_to_x"` — roll angle (signed) subtracted from X
+    /// - `"yaw_to_z"` — yaw magnitude subtracted from Z
+    ///
+    /// `roll_to_z`, `roll_to_x`, and `yaw_to_z` compensate NeuralNet model artifacts:
+    /// head tilt/turn changes the face bounding box profile, which the model
+    /// misreads as depth/lateral change. Measure coefficients from diagnostic CSVs
+    /// with other axes masked and deliberate roll/yaw sweeps recorded.
     pub struct CrossAxisCompStage {
-        prev_pose: Option<Pose>,
         yaw_to_pitch: f32,
         yaw_to_x: f32,
         yaw_to_y: f32,
         yaw_to_roll: f32,
+        yaw_to_z: f32,
         pitch_to_y: f32,
         z_to_y: f32,
         z_to_pitch: f32,
+        roll_to_z: f32,
+        roll_to_x: f32,
         /// Neck pivot distance in mm (~170mm for adults). Used for
         /// geometric yaw→X/Y compensation that's camera-independent.
         pivot_mm: f32,
@@ -380,14 +477,16 @@ pub mod stages {
     impl CrossAxisCompStage {
         pub fn new() -> Self {
             Self {
-                prev_pose: None,
                 yaw_to_pitch: 0.0,
                 yaw_to_x: -0.40,
                 yaw_to_y: -0.40,
                 yaw_to_roll: -0.55,
+                yaw_to_z: 0.0,   // measured per-camera from diagnostic CSV; 0 = disabled
                 pitch_to_y: 0.0,
-                z_to_y: -0.50,
+                z_to_y: 0.0,
                 z_to_pitch: 0.0,
+                roll_to_z: 0.0,  // measured per-camera from diagnostic CSV; 0 = disabled
+                roll_to_x: 0.0,  // measured per-camera from diagnostic CSV; 0 = disabled
                 pivot_mm: 170.0,
             }
         }
@@ -399,34 +498,27 @@ pub mod stages {
         }
 
         fn process(&mut self, pose: Pose, _dt: f32) -> Pose {
-            let result = if let Some(prev) = &self.prev_pose {
-                let d_yaw = pose.yaw - prev.yaw;
-                let d_pitch = pose.pitch - prev.pitch;
-                let d_z = pose.z - prev.z;
+            let yaw_rad = pose.yaw.to_radians();
+            let _pitch_rad = pose.pitch.to_radians();
 
-                let d_yaw_rad = d_yaw.to_radians();
-                let geo_x = -self.pivot_mm * d_yaw_rad;
-                let geo_y = -self.pivot_mm * 0.15 * d_yaw_rad;
+            // Geometric offset from neck pivot point (~170mm).
+            // When you twist your neck left/right, your face translates slightly sideways and backwards.
+            let geo_x = -self.pivot_mm * yaw_rad.sin();
+            let geo_y = self.pivot_mm * 0.15 * yaw_rad.sin().abs(); 
+            let geo_z = self.pivot_mm * (1.0 - yaw_rad.cos());
 
-                Pose {
-                    yaw: pose.yaw,
-                    pitch: pose.pitch - d_yaw * self.yaw_to_pitch - d_z * self.z_to_pitch,
-                    roll: pose.roll - d_yaw * self.yaw_to_roll,
-                    x: pose.x - geo_x - d_yaw * self.yaw_to_x,
-                    y: pose.y - geo_y - d_yaw * self.yaw_to_y - d_pitch * self.pitch_to_y - d_z * self.z_to_y,
-                    z: pose.z,
-                    timestamp_us: pose.timestamp_us,
-                }
-            } else {
-                pose
-            };
-            self.prev_pose = Some(pose);
-            result
+            Pose {
+                yaw: pose.yaw,
+                pitch: pose.pitch - pose.yaw * self.yaw_to_pitch - pose.z * self.z_to_pitch,
+                roll: pose.roll - pose.yaw * self.yaw_to_roll,
+                x: pose.x - geo_x - pose.yaw * self.yaw_to_x - pose.roll * self.roll_to_x,
+                y: pose.y - geo_y - pose.yaw * self.yaw_to_y - pose.pitch * self.pitch_to_y - pose.z * self.z_to_y,
+                z: pose.z - geo_z - pose.yaw.abs() * self.yaw_to_z - pose.roll.abs() * self.roll_to_z,
+                timestamp_us: pose.timestamp_us,
+            }
         }
 
-        fn reset(&mut self) {
-            self.prev_pose = None;
-        }
+        fn reset(&mut self) {}
 
         fn set_param(&mut self, param: &str, value: f32) -> bool {
             match param {
@@ -434,12 +526,31 @@ pub mod stages {
                 "yaw_to_x" => { self.yaw_to_x = value; true }
                 "yaw_to_y" => { self.yaw_to_y = value; true }
                 "yaw_to_roll" => { self.yaw_to_roll = value; true }
+                "yaw_to_z" => { self.yaw_to_z = value; true }
                 "pitch_to_y" => { self.pitch_to_y = value; true }
                 "z_to_y" => { self.z_to_y = value; true }
                 "z_to_pitch" => { self.z_to_pitch = value; true }
+                "roll_to_z" => { self.roll_to_z = value; true }
+                "roll_to_x" => { self.roll_to_x = value; true }
                 "pivot_mm" => { self.pivot_mm = value.max(0.0); true }
                 _ => false,
             }
+        }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            vec![
+                ("yaw_to_pitch".to_string(), self.yaw_to_pitch),
+                ("yaw_to_x".to_string(), self.yaw_to_x),
+                ("yaw_to_y".to_string(), self.yaw_to_y),
+                ("yaw_to_roll".to_string(), self.yaw_to_roll),
+                ("yaw_to_z".to_string(), self.yaw_to_z),
+                ("pitch_to_y".to_string(), self.pitch_to_y),
+                ("z_to_y".to_string(), self.z_to_y),
+                ("z_to_pitch".to_string(), self.z_to_pitch),
+                ("roll_to_z".to_string(), self.roll_to_z),
+                ("roll_to_x".to_string(), self.roll_to_x),
+                ("pivot_mm".to_string(), self.pivot_mm),
+            ]
         }
     }
 
@@ -528,6 +639,13 @@ pub mod stages {
             }
             false
         }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            AXIS_NAMES.iter().enumerate().map(|(i, &n)| {
+                (format!("{}.max_rate", n), self.max_rate[i])
+            }).collect()
+        }
     }
 
     // ── Center / offset ──────────────────────────────────────────────────────
@@ -590,6 +708,18 @@ pub mod stages {
                 "z.drift_mult" => { self.drift_mult[5] = value.max(0.0); true }
                 _ => false,
             }
+        }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            let mut out = vec![
+                ("drift_rate".to_string(), self.drift_rate),
+                ("still_threshold".to_string(), self.still_threshold),
+            ];
+            for (i, &n) in AXIS_NAMES.iter().enumerate() {
+                out.push((format!("{}.drift_mult", n), self.drift_mult[i]));
+            }
+            out
         }
 
         fn process(&mut self, pose: Pose, dt: f32) -> Pose {
@@ -785,6 +915,16 @@ pub mod stages {
                 }
             }
         }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            let mut out = vec![("predict_ms".to_string(), self.predict_ms)];
+            for (i, &n) in AXIS_NAMES.iter().enumerate() {
+                out.push((format!("{}.process_noise", n), self.filters[i].process_noise()));
+                out.push((format!("{}.measurement_noise", n), self.filters[i].measurement_noise()));
+            }
+            out
+        }
     }
 
     // ── Soft Deadzone ──────────────────────────────────────────────────────
@@ -874,6 +1014,13 @@ pub mod stages {
             } else {
                 false
             }
+        }
+
+        fn get_params(&self) -> Vec<(String, f32)> {
+            use crate::filter::AXIS_NAMES;
+            AXIS_NAMES.iter().enumerate().map(|(i, &n)| {
+                (n.to_string(), self.dz[i])
+            }).collect()
         }
     }
 }

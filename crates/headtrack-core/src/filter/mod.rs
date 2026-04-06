@@ -58,6 +58,15 @@ impl PoseFilter {
         true
     }
 
+    pub fn get_axis_param(&self, axis: usize, param: &str) -> Option<f32> {
+        if axis >= 6 { return None; }
+        match param {
+            "min_cutoff" => Some(self.params[axis].min_cutoff),
+            "beta" => Some(self.params[axis].beta),
+            _ => None,
+        }
+    }
+
     pub fn filter(&mut self, pose: Pose, dt: f32) -> Pose {
         let vals = [pose.yaw, pose.pitch, pose.roll, pose.x, pose.y, pose.z];
         let f = &mut self.filters;

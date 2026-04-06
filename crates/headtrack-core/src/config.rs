@@ -39,9 +39,13 @@ pub struct CrossAxisComp {
     pub yaw_to_x: f32,
     pub yaw_to_y: f32,
     pub yaw_to_roll: f32,
+    pub yaw_to_z: f32,
     pub pitch_to_y: f32,
     pub z_to_y: f32,
     pub z_to_pitch: f32,
+    pub roll_to_z: f32,
+    #[serde(default)]
+    pub roll_to_x: f32,
 }
 
 /// Kalman prediction parameters.
@@ -92,6 +96,9 @@ pub struct CameraConfig {
     /// When true, closing the window hides to the system tray instead of quitting.
     #[serde(default = "CameraConfig::default_minimize_to_tray")]
     pub minimize_to_tray: bool,
+    /// Default directory for diagnostic recordings.
+    #[serde(default = "CameraConfig::default_diag_directory")]
+    pub diag_directory: String,
 }
 
 impl Default for CameraConfig {
@@ -101,6 +108,7 @@ impl Default for CameraConfig {
             camera_resolution: Self::default_resolution(),
             fov_presets: Vec::new(),
             minimize_to_tray: Self::default_minimize_to_tray(),
+            diag_directory: Self::default_diag_directory(),
         }
     }
 }
@@ -108,6 +116,9 @@ impl Default for CameraConfig {
 impl CameraConfig {
     pub fn default_resolution() -> (u32, u32) { (640, 480) }
     pub fn default_minimize_to_tray() -> bool { true }
+    pub fn default_diag_directory() -> String {
+        std::env::var("HOME").unwrap_or_else(|_| "/tmp".into())
+    }
 
     fn config_dir() -> std::path::PathBuf {
         std::path::PathBuf::from(xdg_config_base()).join("headtrack-rs")
@@ -190,9 +201,12 @@ impl Default for ProfileConfig {
                 yaw_to_x: -0.40,
                 yaw_to_y: -0.40,
                 yaw_to_roll: -0.55,
+                yaw_to_z: 0.0,
                 pitch_to_y: 0.0,
                 z_to_y: -0.50,
                 z_to_pitch: 0.0,
+                roll_to_z: 0.0,
+                roll_to_x: 0.0,
             },
             prediction: Prediction {
                 predict_ms: 10.0,

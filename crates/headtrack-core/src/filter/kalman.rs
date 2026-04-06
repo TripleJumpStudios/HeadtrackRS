@@ -137,6 +137,14 @@ impl ScalarKalman {
         self.measurement_noise = r.max(0.001);
     }
 
+    pub fn process_noise(&self) -> f32 {
+        self.process_noise
+    }
+
+    pub fn measurement_noise(&self) -> f32 {
+        self.measurement_noise
+    }
+
     /// Current estimated velocity (units per second).
     pub fn velocity(&self) -> f32 {
         self.v

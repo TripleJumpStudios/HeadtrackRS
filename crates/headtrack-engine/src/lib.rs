@@ -29,7 +29,7 @@ use headtrack_core::{
     config::{CameraConfig, ProfileConfig},
     pipeline::stages::{
         AxisMaskStage, CenterStage, CrossAxisCompStage, DeadzoneStage, OneEuroStage,
-        PredictionStage, ResponseCurveStage, SlewLimitStage, ZMedianStage,
+        MedianFilterStage, PredictionStage, ResponseCurveStage, SlewLimitStage,
     },
     InputSource, Pipeline, Pose,
 };
@@ -228,7 +228,7 @@ async fn engine_init(
     // 2. Build the pipeline with tuned defaults.
     let mut pipeline = Pipeline::new(vec![
         Box::new(CenterStage::new()),
-        Box::new(ZMedianStage::new()),
+        Box::new(MedianFilterStage::new()),
         Box::new(SlewLimitStage::new()),
         Box::new(OneEuroStage::new(0.01, 0.03)),
         Box::new(CrossAxisCompStage::new()),
@@ -241,14 +241,18 @@ async fn engine_init(
     pipeline.set_param("one-euro-filter", "z.min_cutoff", 0.001);
     pipeline.set_param("one-euro-filter", "z.beta", 0.10);
 
-    // Load saved profile if one exists.
-    match ProfileConfig::load(&ProfileConfig::active_config_path()) {
+    // Load saved profile if one exists, and keep a copy for output-specific reversion.
+    let base_profile: ProfileConfig = match ProfileConfig::load(&ProfileConfig::active_config_path()) {
         Ok(cfg) => {
             apply_config(&mut pipeline, &cfg);
             info!("loaded profile: {}", cfg.name);
+            cfg
         }
-        Err(_) => info!("no saved profile — using built-in defaults"),
-    }
+        Err(_) => {
+            info!("no saved profile — using built-in defaults");
+            ProfileConfig::default()
+        }
+    };
 
     // 3. Load camera config and auto-detect FOV.
     let mut camera_cfg = CameraConfig::load();
@@ -330,6 +334,7 @@ async fn engine_init(
         camera_cfg.fov_diag_deg,
         models_dir,
         pipeline,
+        base_profile,
         pose_tx,
         wine_shm,
         simconnect,
@@ -349,28 +354,42 @@ struct DiagRecorder {
 }
 
 impl DiagRecorder {
-    fn open(path: &std::path::Path, size_limit_mb: u32) -> std::io::Result<Self> {
+    fn open(path: &std::path::Path, size_limit_mb: u32, pipeline: &Pipeline) -> std::io::Result<Self> {
         use std::io::Write;
         let file = std::fs::File::create(path)?;
         let mut writer = std::io::BufWriter::new(file);
-        let header = b"# headtrack-rs diagnostic recording v1\ntime_s,yaw,pitch,roll,x,y,z,fps\n";
-        writer.write_all(header)?;
+
+        // Header: fixed columns + all pipeline params
+        let mut header = "time_s,yaw,pitch,roll,x,y,z,fps".to_string();
+        for (stage, param, _) in pipeline.get_all_params() {
+            header.push_str(&format!(",\"{}:{}\"", stage, param));
+        }
+        header.push('\n');
+
+        writer.write_all(b"# headtrack-rs diagnostic recording v1\n")?;
+        writer.write_all(header.as_bytes())?;
+
         Ok(Self {
             writer,
             start: Instant::now(),
-            bytes_written: header.len() as u64,
+            bytes_written: (header.len() + 39) as u64, // + comment line
             size_limit_bytes: size_limit_mb as u64 * 1024 * 1024,
         })
     }
 
     /// Write a pose data row. Returns `true` if the size limit is now reached.
-    fn write_pose(&mut self, pose: &Pose, fps: f32) -> bool {
+    fn write_pose(&mut self, pose: &Pose, fps: f32, pipeline: &Pipeline) -> bool {
         use std::io::Write;
         let t = self.start.elapsed().as_secs_f64();
-        let line = format!(
-            "{:.4},{:.4},{:.4},{:.4},{:.2},{:.2},{:.2},{:.1}\n",
+        let mut line = format!(
+            "{:.4},{:.4},{:.4},{:.4},{:.2},{:.2},{:.2},{:.1}",
             t, pose.yaw, pose.pitch, pose.roll, pose.x, pose.y, pose.z, fps
         );
+        for (_, _, value) in pipeline.get_all_params() {
+            line.push_str(&format!(",{}", value));
+        }
+        line.push('\n');
+
         self.bytes_written += line.len() as u64;
         let _ = self.writer.write_all(line.as_bytes());
         self.bytes_written >= self.size_limit_bytes
@@ -396,6 +415,55 @@ impl DiagRecorder {
 
 const POLL_INTERVAL: Duration = Duration::from_millis(4); // ~250 Hz poll ceiling
 
+/// Pipeline overrides applied automatically when MSFS 2024 (SimConnect) is detected.
+///
+/// MSFS's Camera API is more sensitive to positional jitter than X-Plane or SC,
+/// requiring heavier filtering and larger deadzones on translation axes.
+/// Reverted automatically when MSFS disconnects.
+const MSFS_OVERRIDES: &[(&str, &str, f32)] = &[
+    // Translation filtering — MSFS Camera API is more sensitive to positional
+    // jitter than X-Plane/SC; requires heavier filtering and larger deadzones.
+    ("one-euro-filter", "x.min_cutoff", 0.30),
+    ("one-euro-filter", "y.min_cutoff", 0.35),
+    ("one-euro-filter", "z.min_cutoff", 0.45),
+    ("deadzone", "x", 3.3),
+    ("deadzone", "y", 3.0),
+    ("deadzone", "z", 20.0),
+    ("prediction", "pos_process_noise", 0.1),
+    ("prediction", "rot_process_noise", 0.1),
+    // Pitch filtering — tuned for instrument panel use; more responsive than
+    // the SC/XP base while still clean during normal flight.
+    ("one-euro-filter", "pitch.min_cutoff", 0.2),
+    ("one-euro-filter", "pitch.beta", 0.2),
+    ("response-curve", "pitch.sensitivity", 2.0),
+    // Pitch→Y cross-axis compensation — absolute mode.
+    // 2026-04-05 structured test measured slope=+1.976mm/°. 2026-04-06 in-flight CSV
+    // analysis showed true NeuralNet coupling is ~4.2mm/° (response curve exponent
+    // was amplifying the residual: -27mm pre-curve → -100mm output). Updated to 4.0.
+    // NOTE: old delta-based value was -0.6 (different semantics — do not reuse).
+    ("cross-axis", "pitch_to_y", 4.0),
+    // Y response curve — linear (exponent=1.0) instead of profile default 1.4.
+    // Exponent 1.4 was amplifying residual pitch→Y bleed 3-4x; 1.0 keeps Y proportional
+    // so real head Y movements are not exaggerated.
+    ("response-curve", "y.exponent", 1.0),
+    // Roll→X compensation — NeuralNet model artifact: head roll changes bounding box
+    // width, misread as lateral (X) translation. Empirical: rolling right (positive)
+    // causes X to go negative, so roll_to_x must be negative to push X back positive.
+    // Measured 2026-04-05: slope=-1.62mm/°, so roll_to_x = -1.62.
+    ("cross-axis", "roll_to_x", -1.62),
+    // Roll→Z and Yaw→Z: 0.0 until measured from dedicated sweep sessions.
+    ("cross-axis", "roll_to_z", 0.0),
+    ("cross-axis", "yaw_to_z", 0.0),
+    // Pitch slew cap — 80°/s prevents hitting MSFS's hardcoded momentum
+    // interpolation threshold, which catastrophically overshoots above a
+    // velocity threshold regardless of user momentum settings (see research notes).
+    ("slew-limit", "pitch", 80.0),
+    // Mask Z entirely — NeuralNet Z (depth-from-face-size) drifts ±200mm and
+    // crosses the deadzone every ~6s, causing slow camera slide + snap. Rotations
+    // and X/Y are reliable; Z is not. Re-enable when model-based Z lands in Phase 4.
+    ("axis-mask", "z", 0.0),
+];
+
 #[allow(clippy::too_many_arguments)]
 async fn run_loop(
     state:                Arc<EngineState>,
@@ -405,6 +473,7 @@ async fn run_loop(
     mut current_fov:      f32,
     models_dir:           PathBuf,
     mut pipeline:         Pipeline,
+    base_profile:         ProfileConfig,
     pose_tx:              broadcast::Sender<Pose>,
     mut wine_shm:         Option<WineShmWriter>,
     simconnect:           Option<SimConnectOutput>,
@@ -420,6 +489,7 @@ async fn run_loop(
     let mut last_pose_time = Instant::now();
     let mut stall_last_warned = Instant::now().checked_sub(Duration::from_secs(60)).unwrap_or_else(Instant::now);
     let mut recorder: Option<DiagRecorder> = None;
+    let mut msfs_connected = false;
 
     loop {
         interval.tick().await;
@@ -438,6 +508,21 @@ async fn run_loop(
                 &mut preview_shutdown,
             ).await;
         }
+        // Detect MSFS connect/disconnect and auto-apply output-specific overrides.
+        let msfs_now = simconnect.as_ref().is_some_and(|s| s.is_connected());
+        if msfs_now != msfs_connected {
+            msfs_connected = msfs_now;
+            if msfs_connected {
+                info!("MSFS connected — applying MSFS pipeline overrides");
+                for &(stage, param, value) in MSFS_OVERRIDES {
+                    pipeline.set_param(stage, param, value);
+                }
+            } else {
+                info!("MSFS disconnected — reverting to base profile");
+                apply_config(&mut pipeline, &base_profile);
+            }
+        }
+
         // If the camera was just switched out, reset the stall watchdog so we
         // don't false-alarm during the 500ms V4L2 release + reopen window.
         if source.is_none() {
@@ -475,7 +560,7 @@ async fn run_loop(
 
             // Diagnostic recorder — write pose row each frame.
             if let Some(ref mut rec) = recorder {
-                let limit = rec.write_pose(&processed, current_fps);
+                let limit = rec.write_pose(&processed, current_fps, &pipeline);
                 state.recording_bytes.store(rec.bytes_written, Ordering::Relaxed);
                 if limit {
                     rec.write_event("RECORDING_STOPPED: size limit reached");
@@ -673,7 +758,7 @@ async fn dispatch_cmd(
                 rec.flush();
             }
             *recorder = None;
-            match DiagRecorder::open(&path, size_limit_mb) {
+            match DiagRecorder::open(&path, size_limit_mb, pipeline) {
                 Ok(mut rec) => {
                     let cam_idx = state.camera_index.load(Ordering::Relaxed);
                     rec.write_event(&format!(
@@ -894,6 +979,8 @@ fn apply_config(pipeline: &mut Pipeline, cfg: &ProfileConfig) {
     pipeline.set_param("cross-axis", "pitch_to_y",   cfg.cross_axis.pitch_to_y);
     pipeline.set_param("cross-axis", "z_to_y",       cfg.cross_axis.z_to_y);
     pipeline.set_param("cross-axis", "z_to_pitch",   cfg.cross_axis.z_to_pitch);
+    pipeline.set_param("cross-axis", "roll_to_z",    cfg.cross_axis.roll_to_z);
+    pipeline.set_param("cross-axis", "roll_to_x",    cfg.cross_axis.roll_to_x);
     pipeline.set_param("prediction", "predict_ms",           cfg.prediction.predict_ms);
     pipeline.set_param("prediction", "rot_process_noise",    cfg.prediction.rot_process_noise);
     pipeline.set_param("prediction", "rot_measurement_noise", cfg.prediction.rot_measurement_noise);

@@ -92,6 +92,8 @@ After installation, enable head tracking in Star Citizen under **Comms, Social &
 
 No installer needed. HeadtrackRS connects to MSFS 2024 automatically via the SimConnect TCP API when the sim is running. One-time setup: create a `SimConnect.xml` file in your MSFS user data directory — see `docs/MSFS_TESTING.md` for the exact path and content.
 
+HeadtrackRS automatically applies MSFS-specific tuning when the sim connects — tighter filtering, larger translation deadzones, and cross-axis compensation values calibrated specifically for MSFS's camera API. These are reverted automatically when you close the sim, so your base profile is unaffected.
+
 ---
 
 ## Building From Source
@@ -133,11 +135,11 @@ This project uses AI-assisted development to accelerate implementation. To ensur
 ## Roadmap
 
 ### Up Next
+- **Code quality pass** — refactor and stability sweep before feature work resumes
 - **Per-camera profiles** — automatically apply the right settings when you switch cameras
 - **Profile auto-switching** — load the right profile when a game is detected
 - **IR point tracking** — for IR LED clips (Delan Cam, etc.), faster and cleaner than webcam-only tracking
 - **Flatpak packaging** — native Flatpak distribution
-- **Thorough integration testing** — extended in-sim sessions across all three simulators to validate and improve default settings
 
 ### Future
 - Alternative pose models for better accuracy at extreme head angles (looking over your shoulder)

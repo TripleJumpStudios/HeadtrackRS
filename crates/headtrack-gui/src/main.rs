@@ -454,9 +454,12 @@ struct HeadtrackApp {
     yaw_to_x:     f32,
     yaw_to_y:     f32,
     yaw_to_roll:  f32,
+    yaw_to_z:     f32,
     pitch_to_y:   f32,
     z_to_y:       f32,
     z_to_pitch:   f32,
+    roll_to_z:    f32,
+    roll_to_x:    f32,
 
     // Prediction / Kalman
     predict_ms:            f32,
@@ -518,6 +521,7 @@ struct HeadtrackApp {
     diag_size_limit_mb:    u32,
     diag_recording_start:  Option<std::time::Instant>,
     diag_recording_path:   std::path::PathBuf,
+    diag_directory:        String,
 }
 
 impl HeadtrackApp {
@@ -553,9 +557,12 @@ impl HeadtrackApp {
             yaw_to_x:     cfg.cross_axis.yaw_to_x,
             yaw_to_y:     cfg.cross_axis.yaw_to_y,
             yaw_to_roll:  cfg.cross_axis.yaw_to_roll,
+            yaw_to_z:     cfg.cross_axis.yaw_to_z,
             pitch_to_y:   cfg.cross_axis.pitch_to_y,
             z_to_y:       cfg.cross_axis.z_to_y,
             z_to_pitch:   cfg.cross_axis.z_to_pitch,
+            roll_to_z:    cfg.cross_axis.roll_to_z,
+            roll_to_x:    cfg.cross_axis.roll_to_x,
             predict_ms:            cfg.prediction.predict_ms,
             rot_process_noise:     cfg.prediction.rot_process_noise,
             rot_measurement_noise: cfg.prediction.rot_measurement_noise,
@@ -592,6 +599,7 @@ impl HeadtrackApp {
             diag_size_limit_mb:   50,
             diag_recording_start: None,
             diag_recording_path:  std::path::PathBuf::new(),
+            diag_directory:       camera_cfg.diag_directory,
         }
     }
 
@@ -621,9 +629,12 @@ impl HeadtrackApp {
                 yaw_to_x:     self.yaw_to_x,
                 yaw_to_y:     self.yaw_to_y,
                 yaw_to_roll:  self.yaw_to_roll,
+                yaw_to_z:     self.yaw_to_z,
                 pitch_to_y:   self.pitch_to_y,
                 z_to_y:       self.z_to_y,
                 z_to_pitch:   self.z_to_pitch,
+                roll_to_z:    self.roll_to_z,
+                roll_to_x:    self.roll_to_x,
             },
             prediction: Prediction {
                 predict_ms:             self.predict_ms,
@@ -665,16 +676,22 @@ impl HeadtrackApp {
         self.yaw_to_x     = cfg.cross_axis.yaw_to_x;
         self.yaw_to_y     = cfg.cross_axis.yaw_to_y;
         self.yaw_to_roll  = cfg.cross_axis.yaw_to_roll;
+        self.yaw_to_z     = cfg.cross_axis.yaw_to_z;
         self.pitch_to_y   = cfg.cross_axis.pitch_to_y;
         self.z_to_y       = cfg.cross_axis.z_to_y;
         self.z_to_pitch   = cfg.cross_axis.z_to_pitch;
+        self.roll_to_z    = cfg.cross_axis.roll_to_z;
+        self.roll_to_x    = cfg.cross_axis.roll_to_x;
         self.send_set("cross-axis", "yaw_to_pitch", cfg.cross_axis.yaw_to_pitch);
         self.send_set("cross-axis", "yaw_to_x",     cfg.cross_axis.yaw_to_x);
         self.send_set("cross-axis", "yaw_to_y",     cfg.cross_axis.yaw_to_y);
         self.send_set("cross-axis", "yaw_to_roll",  cfg.cross_axis.yaw_to_roll);
+        self.send_set("cross-axis", "yaw_to_z",     cfg.cross_axis.yaw_to_z);
         self.send_set("cross-axis", "pitch_to_y",   cfg.cross_axis.pitch_to_y);
         self.send_set("cross-axis", "z_to_y",       cfg.cross_axis.z_to_y);
         self.send_set("cross-axis", "z_to_pitch",   cfg.cross_axis.z_to_pitch);
+        self.send_set("cross-axis", "roll_to_z",    cfg.cross_axis.roll_to_z);
+        self.send_set("cross-axis", "roll_to_x",    cfg.cross_axis.roll_to_x);
 
         self.predict_ms            = cfg.prediction.predict_ms;
         self.rot_process_noise     = cfg.prediction.rot_process_noise;
@@ -2192,6 +2209,39 @@ impl HeadtrackApp {
                 ui.end_row();
             });
 
+        // ── Diagnostics ──────────────────────────────────────────────────
+        section(ui, "Diagnostics");
+
+        egui::Grid::new("diag_settings_grid")
+            .spacing([8.0, 6.0])
+            .min_col_width(100.0)
+            .show(ui, |ui| {
+                ui.label("Folder:");
+                ui.horizontal(|ui| {
+                    if ui.add(
+                        egui::TextEdit::singleline(&mut self.diag_directory)
+                            .desired_width(280.0)
+                    ).changed() {
+                        let mut cfg = CameraConfig::load();
+                        cfg.diag_directory = self.diag_directory.clone();
+                        let _ = cfg.save();
+                    }
+                    if ui.small_button("Browse…").clicked() {
+                        if let Some(folder) = rfd::FileDialog::new()
+                            .set_title("Select Diagnostics Folder")
+                            .set_directory(&self.diag_directory)
+                            .pick_folder()
+                        {
+                            self.diag_directory = folder.display().to_string();
+                            let mut cfg = CameraConfig::load();
+                            cfg.diag_directory = self.diag_directory.clone();
+                            let _ = cfg.save();
+                        }
+                    }
+                });
+                ui.end_row();
+            });
+
         // ── Pose Model ────────────────────────────────────────────────────
         section(ui, "Pose Model");
 
@@ -2376,18 +2426,132 @@ impl HeadtrackApp {
             egui::RichText::new("Per-axis pipeline controls. Extreme values may cause motion sickness.")
                 .weak(),
         );
+
+        section(ui, "Tester");
+        ui.label(
+            egui::RichText::new("Record pose + parameter changes to a CSV file for tuning analysis or bug reports.")
+                .weak().small(),
+        );
         ui.add_space(4.0);
 
-        // ── Recenter at top ──────────────────────────────────────────────
-        if ui
-            .add(
-                egui::Button::new(egui::RichText::new("Recenter").size(14.0))
-                    .min_size(egui::vec2(120.0, 32.0)),
-            )
-            .clicked()
-        {
-            self.cmd.send(EngineCmd::Recenter);
-        }
+        // ── Top Bar: Recenter + Diagnostics ──────────────────────────────
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+
+            if ui
+                .add(
+                    egui::Button::new(egui::RichText::new("Recenter").size(14.0))
+                        .min_size(egui::vec2(120.0, 32.0)),
+                )
+                .clicked()
+            {
+                self.cmd.send(EngineCmd::Recenter);
+            }
+
+            ui.separator();
+
+            let status = RecordingStatus::from_u8(
+                self.state.recording_status.load(Ordering::Relaxed)
+            );
+
+            match status {
+                RecordingStatus::Idle => {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("\u{25fd}  Record")
+                                    .color(egui::Color32::from_gray(210))
+                                    .size(14.0)
+                            )
+                            .min_size(egui::vec2(100.0, 32.0)),
+                        )
+                        .clicked()
+                    {
+                        let path = diag_default_path(&self.diag_directory);
+                        self.diag_recording_path = path.clone();
+                        self.diag_recording_start = Some(std::time::Instant::now());
+                        self.cmd.send(EngineCmd::StartRecording {
+                            path,
+                            size_limit_mb: self.diag_size_limit_mb,
+                        });
+                    }
+
+                    ui.separator();
+
+                    if ui.add(egui::Button::new(egui::RichText::new("\u{1F5C1}").size(13.0)).min_size(egui::vec2(28.0, 28.0)))
+                        .on_hover_text("Select Folder")
+                        .clicked() 
+                    {
+                        if let Some(folder) = rfd::FileDialog::new()
+                            .set_title("Select Diagnostics Folder")
+                            .set_directory(&self.diag_directory)
+                            .pick_folder()
+                        {
+                            self.diag_directory = folder.display().to_string();
+                            let mut cfg = CameraConfig::load();
+                            cfg.diag_directory = self.diag_directory.clone();
+                            let _ = cfg.save();
+                        }
+                    }
+
+                    ui.separator();
+
+                    ui.add(
+                        egui::DragValue::new(&mut self.diag_size_limit_mb)
+                            .range(1..=500)
+                            .suffix(" MB")
+                            .speed(1.0),
+                    );
+                }
+
+                RecordingStatus::Active => {
+                    let elapsed = self.diag_recording_start
+                        .map(|s| s.elapsed().as_secs())
+                        .unwrap_or(0);
+                    let bytes = self.state.recording_bytes.load(Ordering::Relaxed);
+                    let limit_bytes = self.diag_size_limit_mb as u64 * 1024 * 1024;
+                    let frac = (bytes as f32 / limit_bytes as f32).min(1.0);
+
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("\u{25fc}  Stop")
+                                    .color(colors::ORANGE)
+                                    .size(14.0)
+                            )
+                            .min_size(egui::vec2(100.0, 32.0)),
+                        )
+                        .clicked()
+                    {
+                        self.diag_recording_start = None;
+                        self.cmd.send(EngineCmd::StopRecording);
+                    }
+
+                    ui.separator();
+
+                    ui.add(
+                        egui::ProgressBar::new(frac)
+                            .desired_width(120.0)
+                            .text(format!("{:02}:{:02}", elapsed / 60, elapsed % 60))
+                            .fill(colors::ORANGE_DIM),
+                    );
+                }
+
+                RecordingStatus::LimitReached => {
+                    self.diag_recording_start = None;
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new("\u{26a0}  Limit!").color(colors::ORANGE).small(),
+                        );
+                        if ui.small_button("Dismiss").clicked() {
+                            self.cmd.send(EngineCmd::StopRecording);
+                        }
+                    });
+                }
+            }
+        });
+
+        ui.add_space(4.0);
 
         // ── Live Axes — unified selector + display ───────────────────────
         section(ui, "Live Axes");
@@ -2548,7 +2712,22 @@ impl HeadtrackApp {
             if param_cell(ui, "Z -> Pitch", &mut self.z_to_pitch, -1.0..=1.0, 2) {
                 self.send_set("cross-axis", "z_to_pitch", self.z_to_pitch);
             }
-            // intentional spacer — 7 params don't fill 4 pairs evenly
+            ui.add_space(8.0);
+            if param_cell(ui, "Roll -> Z", &mut self.roll_to_z, -1.0..=1.0, 2) {
+                self.send_set("cross-axis", "roll_to_z", self.roll_to_z);
+            }
+            ui.add_space(8.0);
+            if param_cell(ui, "Roll -> X", &mut self.roll_to_x, -3.0..=3.0, 2) {
+                self.send_set("cross-axis", "roll_to_x", self.roll_to_x);
+            }
+        });
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            if param_cell(ui, "Yaw -> Z", &mut self.yaw_to_z, -1.0..=1.0, 2) {
+                self.send_set("cross-axis", "yaw_to_z", self.yaw_to_z);
+            }
+            // intentional spacer
+
         });
 
         section(ui, "Prediction");
@@ -2600,120 +2779,15 @@ impl HeadtrackApp {
                 self.send_set("center", "z.drift_mult", self.z_drift_mult);
             }
         });
-
-        section(ui, "Diagnostics");
-        ui.label(
-            egui::RichText::new(
-                "Record pose + parameter changes to a CSV file for tuning analysis or bug reports."
-            )
-            .weak()
-            .small(),
-        );
-        ui.add_space(4.0);
-
-        let status = RecordingStatus::from_u8(
-            self.state.recording_status.load(Ordering::Relaxed)
-        );
-
-        match status {
-            RecordingStatus::Idle => {
-                ui.horizontal(|ui| {
-                    ui.label("Size limit:");
-                    ui.add(
-                        egui::DragValue::new(&mut self.diag_size_limit_mb)
-                            .range(1..=500)
-                            .suffix(" MB"),
-                    );
-                });
-                ui.add_space(4.0);
-                if ui
-                    .add(
-                        egui::Button::new(
-                            egui::RichText::new("\u{25cf}  Record").color(egui::Color32::from_gray(220)),
-                        )
-                        .min_size(egui::vec2(90.0, 28.0)),
-                    )
-                    .clicked()
-                {
-                    let path = diag_default_path();
-                    self.diag_recording_path = path.clone();
-                    self.diag_recording_start = Some(std::time::Instant::now());
-                    self.cmd.send(EngineCmd::StartRecording {
-                        path,
-                        size_limit_mb: self.diag_size_limit_mb,
-                    });
-                }
-            }
-
-            RecordingStatus::Active => {
-                let elapsed = self.diag_recording_start
-                    .map(|s| s.elapsed().as_secs())
-                    .unwrap_or(0);
-                let bytes = self.state.recording_bytes.load(Ordering::Relaxed);
-                let limit_bytes = self.diag_size_limit_mb as u64 * 1024 * 1024;
-                let frac = (bytes as f32 / limit_bytes as f32).min(1.0);
-
-                ui.horizontal(|ui| {
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("\u{25a0}  Stop")
-                                    .color(colors::ORANGE),
-                            )
-                            .min_size(egui::vec2(90.0, 28.0)),
-                        )
-                        .clicked()
-                    {
-                        self.diag_recording_start = None;
-                        self.cmd.send(EngineCmd::StopRecording);
-                    }
-                    ui.add_space(8.0);
-                    ui.label(egui::RichText::new(
-                        format!("{:02}:{:02}", elapsed / 60, elapsed % 60)
-                    ).monospace());
-                    ui.add_space(8.0);
-                    ui.label(egui::RichText::new(
-                        format!("{:.1} / {} MB", bytes as f64 / (1024.0 * 1024.0), self.diag_size_limit_mb)
-                    ).small().weak());
-                });
-
-                ui.add_space(2.0);
-                ui.add(
-                    egui::ProgressBar::new(frac)
-                        .desired_width(320.0)
-                        .fill(colors::ORANGE_DIM),
-                );
-                ui.add_space(2.0);
-
-                let path_str = self.diag_recording_path.display().to_string();
-                ui.label(egui::RichText::new(&path_str).small().weak().monospace());
-            }
-
-            RecordingStatus::LimitReached => {
-                self.diag_recording_start = None;
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("\u{26a0}  Recording stopped — size limit reached")
-                            .color(colors::ORANGE)
-                            .small(),
-                    );
-                });
-                let path_str = self.diag_recording_path.display().to_string();
-                ui.label(egui::RichText::new(format!("Saved: {path_str}")).small().weak().monospace());
-                ui.add_space(4.0);
-                if ui.small_button("Dismiss").clicked() {
-                    self.cmd.send(EngineCmd::StopRecording);
-                }
-            }
-        }
     }
 }
 
-fn diag_default_path() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let ts = std::time::SystemTime::now()
+fn diag_default_path(dir: &str) -> std::path::PathBuf {
+    use std::time::SystemTime;
+    let ts = SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    std::path::PathBuf::from(home).join(format!("headtrack-diag-{ts}.csv"))
+    std::path::PathBuf::from(dir).join(format!("headtrack_record_{ts}.csv"))
 }
+
