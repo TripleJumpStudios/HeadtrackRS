@@ -13,6 +13,12 @@ Built natively in Rust for Linux. Not a wrapper around Opentrack.
 
 ---
 
+# Current Updates
+
+Sim Update 5 changes the way that Microsoft Flight Simulator 2024 handles camera inputs and 6DOF as well as introduces a new Camera API. Work to support this is underway. If you use the current release version, note that you will have issues with the world map and camera poistion. This is due to these changes. Stay tuned for updates soon.
+
+---
+
 ## What It Does
 
 HeadtrackRS turns any webcam into a 6-axis head tracker — yaw, pitch, roll, and X/Y/Z translation — and feeds that data directly into your flight simulator in real time. Move your head left to look left. Lean forward to peer over the instrument panel. It works the way you'd expect.
