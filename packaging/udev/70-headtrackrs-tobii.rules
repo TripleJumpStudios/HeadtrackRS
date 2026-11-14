@@ -1,0 +1,5 @@
+# HeadtrackRS: let the logged-in user open the Tobii Eye Tracker 5 (USB 2104:0313).
+# TAG+="uaccess" grants an ACL to whoever holds the active local seat, and to no one
+# else. Must sort before 73-seat-late.rules, hence the 70- prefix.
+# Remove this file and run `udevadm control --reload-rules` to undo.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="2104", ATTR{idProduct}=="0313", TAG+="uaccess"

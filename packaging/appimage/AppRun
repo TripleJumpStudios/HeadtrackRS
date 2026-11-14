@@ -9,7 +9,8 @@
 #
 # appimagetool sets APPDIR to the mounted squashfs root.
 export APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
-export LD_LIBRARY_PATH="$APPDIR/lib:${LD_LIBRARY_PATH}"
+# No bundled shared libraries: ONNX Runtime is linked statically, so there is
+# no LD_LIBRARY_PATH to set (an empty one would add the working directory).
 
 CMD=$(basename "${ARGV0:-$0}")
 if [[ "$CMD" == headtrackd* ]]; then

@@ -134,7 +134,7 @@ static mut G_ENCRYPT_TABLE: [u8; 8] = [0; 8];
 
 
 // ---------------------------------------------------------------------------
-// Diagnostics: append a line to /tmp/headtrack-npclient.log on the Linux host.
+// Diagnostics: append a line to LOG_PATH (C:\headtrack\npclient.log in the Wine prefix).
 // ---------------------------------------------------------------------------
 
 unsafe fn diag(msg: &[u8]) {
@@ -380,10 +380,10 @@ pub unsafe extern "system" fn DllMain(
     _reserved: LPVOID,
 ) -> BOOL {
     if reason == DLL_PROCESS_ATTACH {
-        // Phase 0 smoke test: minimal DLL load verification
         diag(b"DLL loaded successfully");
         DisableThreadLibraryCalls(hinst);
-        // try_open_shm() — disabled for Phase 0 to isolate DLL load issues
+        // SHM is opened lazily on first use, not here: DllMain runs under the
+        // loader lock, where doing real work risks deadlocking the game.
     }
     TRUE
 }

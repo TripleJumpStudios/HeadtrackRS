@@ -1,0 +1,31 @@
+# Every CameraConfig field that existed before P05 (2026-10-03), no head_source.
+fov_diag_deg = 84.0
+camera_resolution = [1280, 720]
+minimize_to_tray = false
+diag_directory = "/home/pilot/htrs-diag"
+hotkey_recenter = "F9"
+hotkey_toggle = "F10"
+msfs_camera_smoothing = 12.5
+sc_output_smoothing = 0.0
+show_advanced = true
+window_size = [1200.0, 800.0]
+
+[[fov_presets]]
+name = "Facecam MK.2"
+fov = 84.0
+
+[[fov_presets]]
+name = "C920"
+fov = 78.0
+
+[[controller_bindings]]
+action = "recenter"
+device = "VKBsim Gladiator EVO R"
+code = 721
+label = "VKBsim Gladiator EVO R · BTN_TRIGGER_HAPPY18"
+
+[[controller_bindings]]
+action = "msfs-seat-fwd"
+device = "VKBsim Gladiator EVO R"
+code = 722
+label = "VKBsim Gladiator EVO R · BTN_TRIGGER_HAPPY19"

@@ -1,0 +1,23 @@
+[package]
+name = "headtrack-input-tobii"
+version = "0.1.0"
+edition = "2021"
+license = "MIT AND Apache-2.0"
+description = "Tobii IR head-pose estimator (MediaPipe Face Mesh V2 + BlazeFace via tract-tflite); estimator half ported from TobiiLab tobii-head"
+publish = false
+
+[dependencies]
+headtrack-core = { path = "../headtrack-core" }
+headtrack-tobii-device = { path = "../headtrack-tobii-device" }
+tract-tflite = "=0.23.6"
+nalgebra = "0.34"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3.27"
+
+# The tract-tflite [patch] lives in the root Cargo.toml (patches are workspace-level).

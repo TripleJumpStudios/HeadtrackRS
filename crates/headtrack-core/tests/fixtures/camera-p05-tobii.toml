@@ -1,0 +1,10 @@
+# Tobii active, with the webcam remembered for the switch back.
+fov_diag_deg = 84.0
+
+[head_source]
+kind = "tobii"
+serial = "IS5FF-100203345678"
+
+[last_webcam]
+index = 2
+name = "Elgato Facecam MK.2"

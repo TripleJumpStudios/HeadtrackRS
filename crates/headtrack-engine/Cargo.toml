@@ -5,12 +5,41 @@ edition.workspace = true
 license.workspace = true
 description = "headtrack-rs engine: camera, ONNX, pipeline, outputs, IPC server"
 
+[features]
+default = ["input-neuralnet", "input-tobii", "output-wine", "output-simconnect"]
+input-neuralnet   = ["dep:headtrack-input-neuralnet"]
+# Developer-only camera-frame capture; never in a release build (see input-neuralnet's Cargo.toml).
+frame-dump        = ["input-neuralnet", "headtrack-input-neuralnet/frame-dump"]
+# Tobii Eye Tracker 5 as a head source (3DOF IR rotation; P06/P07).
+input-tobii       = ["dep:headtrack-input-tobii"]
+output-wine       = ["dep:headtrack-output-wine"]
+output-simconnect = ["dep:headtrack-output-simconnect"]
+# Dormant Phase 4 inputs — compile cleanly but not yet wired into the run loop.
+input-smoothtrack = ["dep:headtrack-input-smoothtrack"]
+input-linuxtrack  = ["dep:headtrack-input-linuxtrack"]
+
 [dependencies]
-headtrack-core             = { path = "../headtrack-core" }
-headtrack-ipc              = { path = "../headtrack-ipc" }
-headtrack-input-neuralnet  = { path = "../headtrack-input-neuralnet" }
-headtrack-output-wine      = { path = "../headtrack-output-wine" }
-headtrack-output-simconnect = { path = "../headtrack-output-simconnect" }
-tokio                      = { workspace = true }
-anyhow                     = { workspace = true }
-tracing                    = { workspace = true }
+headtrack-core              = { path = "../headtrack-core" }
+headtrack-ipc               = { path = "../headtrack-ipc" }
+headtrack-input-neuralnet   = { path = "../headtrack-input-neuralnet", optional = true }
+headtrack-input-tobii       = { path = "../headtrack-input-tobii", optional = true }
+headtrack-output-wine       = { path = "../headtrack-output-wine", optional = true }
+headtrack-output-simconnect = { path = "../headtrack-output-simconnect", optional = true }
+headtrack-input-smoothtrack = { path = "../headtrack-input-smoothtrack", optional = true }
+headtrack-input-linuxtrack  = { path = "../headtrack-input-linuxtrack", optional = true }
+tokio                       = { workspace = true }
+anyhow                      = { workspace = true }
+tracing                     = { workspace = true }
+tracing-subscriber          = { workspace = true }
+# XDG GlobalShortcuts portal (desktop-global hotkeys that fire while the sim
+# has focus). Pinned to the 0.9.x line: it rides zbus 4, already in the tree
+# via accesskit (eframe). Default async-io backend, NOT the "tokio" feature:
+# that feature turns on zbus 4's tokio executor for the whole build, and
+# accesskit's AT-SPI bridge runs zbus 4 on its own non-tokio thread, where it
+# panicked at every GUI launch (KNOWN_BUGS #1, P02/P02b). The portal futures
+# run fine from tokio tasks either way — zbus drives its own executor thread.
+ashpd                       = { version = "0.9", default-features = false, features = ["async-std"] }
+futures-util                = { version = "0.3", default-features = false, features = ["std"] }
+# Controller/HOTAS button bindings (in-app bind UI, global by nature): raw
+# evdev — joystick devices are seat-user readable (uaccess), pure Rust.
+evdev                       = "0.13"

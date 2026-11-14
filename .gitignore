@@ -2,9 +2,25 @@
 target/
 crates/*/target/
 
-# Old MSFS Wine bridge artifact — excluded (replaced by SimConnect TCP)
-packaging/appimage/AppDir/bridge/headtrack-winebridge.exe
+# Assembled AppImage tree — pure build output. `build-appimage.sh` does
+# `rm -rf` on it and reassembles from target/ and assets/ on every run, so
+# tracking it just wrote a fresh ~150 MB of binaries into history per rebuild.
+# The inputs (AppRun, build-appimage.sh) ARE tracked; the output is not.
+# Shipped artifacts go to the GitHub Releases page.
+packaging/appimage/AppDir/
 *.AppImage
+
+# MSFS 2024 SDK installer — Microsoft's redistributable, local reference only.
+# 468 MB, and not ours to publish.
+tools/MSFS2024_SDK_Core_Installer_*/
+
+# Verbatim Microsoft SDK documentation, kept locally as the source material the
+# Camera API wire protocol was reverse-engineered from. Our own account of that
+# protocol is docs/SIMCONNECT_CAMERA_API_WIRE.md, which is what we publish.
+camera_api_info.txt
+
+# GUI design mockup — a scratch file, not a product asset.
+assets/headtrackrs.html
 
 # Personal notes and local docs
 My_Notes.txt
@@ -14,10 +30,28 @@ Research\ Documents/
 # Local test data — diagnostic CSV recordings
 TesterCSVData/
 
-# Markdown and task files (README.md is the only exception)
+# Snow Leopard draw-down safety net — pre-deletion copies of removed files.
+# Local recovery only; never committed.
+archive/
+
+# Markdown is private by default: docs/ holds working engineering notes
+# (flight logs, investigation histories, draw-down plans) written for us.
+# The exceptions are the documents README.md links to, which must resolve
+# on GitHub: the changelog and the user-facing capture guide.
+# Note `docs/*` rather than `docs/` — git does not descend into an ignored
+# directory, so the negation below would never be reached.
 *.md
 !README.md
-docs/
+!CHANGELOG.md
+docs/*
+!docs/CONTRIBUTING_DATA.md
+# Licence notices must ship with the code (P16, 2026-10-18): the third-party notices,
+# and the Apache-2.0 NOTICE beside the MediaPipe models. build-appimage.sh copies both.
+!THIRD_PARTY_NOTICES.md
+!assets/models/tobii/NOTICE.md
+# Upstream tract-tflite file, hash-pinned by vendor/tract-tflite/TRACT_SNAPSHOT.json
+# (tract_snapshot_hashes_verify fails in a clone without it; found by the P16 clean build).
+!vendor/tract-tflite/Readme.md
 
 # Python cache
 __pycache__/
@@ -37,3 +71,22 @@ Thumbs.db
 # Secrets / local config overrides
 *.env
 config.local.toml
+.aider*
+
+# Images of people are never published (maintainer, 2026-10-03, hardline). These .f32
+# tensors are IR images of a real face (256x256 crop + 128x128 frame) stored as floats.
+crates/headtrack-input-tobii/tests/fixtures/parity-initial-*/
+# Google's model-card PDFs embed raster photographs (P16, 2026-10-18). Kept locally as
+# licence evidence; never published or bundled. THIRD_PARTY_NOTICES links the originals.
+assets/models/tobii/*.pdf
+
+# Local dated source tarballs (taskmaster). Never published; may contain local-only fixtures.
+backups/
+
+# Local-only tool state (P16, 2026-10-18): Claude Code's per-machine permission rules and
+# the taskmaster's backup-pruning rule. Neither belongs in a public repo.
+.claude/settings.local.json
+.backup-retention
+# Local undo areas (2026-11-14): removed files and per-session edit snapshots.
+.trash/
+.snapshots/

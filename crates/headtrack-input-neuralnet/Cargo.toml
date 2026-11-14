@@ -5,6 +5,13 @@ edition.workspace = true
 license.workspace = true
 description = "Webcam AI tracking via ort (ONNX Runtime) and nokhwa V4L2 capture"
 
+[features]
+# Developer-only full-resolution frame capture (HEADTRACK_DUMP_FRAMES, src/frame_dump.rs).
+# OFF by default and never enabled in a release build: it is the only code path that can
+# write camera imagery to disk. scripts/capture-frames.sh turns it on for the detector
+# bake-off. Without it, HEADTRACK_DUMP_FRAMES warns once and records nothing.
+frame-dump = []
+
 [dependencies]
 headtrack-core = { path = "../headtrack-core" }
 anyhow = { workspace = true }
@@ -26,3 +33,7 @@ v4l = "0.14"
 
 # Image manipulation: grayscale conversion, resize, crop.
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+# Linear algebra for PnP solver (Gauss-Newton on 6 unknowns) and optical flow
+# (2×2 system per landmark). Default features only; we don't need rand/serde.
+nalgebra = { workspace = true }

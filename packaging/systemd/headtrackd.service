@@ -1,6 +1,6 @@
 [Unit]
 Description=headtrack-rs head tracking daemon
-Documentation=https://github.com/jeremy/headtrack-rs
+Documentation=https://github.com/TripleJumpStudios/HeadtrackRS
 PartOf=graphical-session.target
 After=graphical-session.target
 

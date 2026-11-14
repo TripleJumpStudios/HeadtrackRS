@@ -9,12 +9,22 @@ description = "headtrack-rs GUI — runs the engine in-process for zero-latency 
 name = "headtrack-gui"
 path = "src/main.rs"
 
+[features]
+# Developer-only GUI fixtures (HEADTRACK_GUI_FAKE_TOBII, HEADTRACK_GUI_PAGE,
+# HEADTRACK_GUI_SCREENSHOT) for the offline screenshot harness. OFF by default and
+# never in a release build: the screenshot switch writes this window's pixels,
+# which on the Dashboard include the camera preview, to disk. Same rule as
+# input-neuralnet's frame-dump. Without it the variables are ignored.
+dev-fixtures = []
+
 [dependencies]
 headtrack-engine = { path = "../headtrack-engine" }
 headtrack-core   = { path = "../headtrack-core" }
 eframe           = "0.31"
-image            = { version = "0.25", default-features = false, features = ["jpeg"] }
+egui-phosphor    = "0.9"
+image            = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 ksni             = { version = "0.3", features = ["blocking", "tokio"], default-features = false }
 rfd              = "0.17"
 tracing          = { workspace = true }
+tracing-subscriber = { workspace = true }
 v4l              = "0.14"

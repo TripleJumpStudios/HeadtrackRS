@@ -72,6 +72,9 @@ fn recv_loop(stream: &UnixStream, pose: &Arc<Mutex<Option<Pose>>>) -> io::Result
         reader.read_exact(&mut len_buf)?;
         let payload_len = u32::from_le_bytes(len_buf) as usize;
 
+        if payload_len > 256 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "payload too large"));
+        }
         let mut payload = vec![0u8; payload_len];
         reader.read_exact(&mut payload)?;
 

@@ -1,0 +1,34 @@
+{
+  "version": "0.23.6",
+  "license": "MIT OR Apache-2.0",
+  "original_sha256": {
+    ".cargo_vcs_info.json": "e3e7ef17ec6ec47c2a80f7b4f5729d91ee8f4f86826534e66384095dd95eb94a",
+    "Cargo.lock": "0732d84799ba9162bdbc06afbab2c10b8336a89482773fe564ebf57ec584f55b",
+    "Cargo.toml": "7cf2e6d47972f9d32b4e5f1f35423a30d0e2ae50f0c64e7a1c65fa8af6bceb2e",
+    "Cargo.toml.orig": "2db8c50f4b30a8eb3202d5dba9937a4b25e232013c510aee5012f0310c409591",
+    "Readme.md": "50611d12ddbced85ca4315c13f8918782a20954cedb80090b8decc2e2f169200",
+    ".cargo-ok": "afbf9d0f3560b0fd7795e81c42a0a79ee6b6fc67e064f77826aee642cad28d91",
+    "schema/tflite.fbs": "cf3a0e48176c6f87f3df6699af2d263be9d524d84e33dd8a38af912d8ac39d23",
+    "src/lib.rs": "38b1d5ff060a7eb4db69a79bf5f485cc75344621f1aa751ca93fe955fa180c54",
+    "src/model.rs": "5266a96ab8ec3144cf090fcceefa5aa82dbfa5de532cdd37b8950b451b0c389f",
+    "src/registry.rs": "60ebeb5e10d4231d1c14bf6b7e1f67587363190454230003a59bbf4254529ec4",
+    "src/rewriter.rs": "00434e55cc1a1ac9bfa2bbe48d5c5cf4af5101aab474822dc0fcdc3c808948c1",
+    "src/ser.rs": "8113d06da5e83b651c0f378b7a09de36bcef4c8c2cac7d0e0d567cf00e5fe1d8",
+    "src/tensors.rs": "7a9bb08bd2715b7bd7d6c5b9f95d41e0d817f0c5ffc4cb5f183cf4a928a54bad",
+    "src/tflite_generated.rs": "2730d4a7d0f2a21f242f20b6d558dc05749c3494ccf99ba0f85368c446a59b62",
+    "src/ops/array.rs": "5c43f03e717bc1716866a3585575bff120d3c5e0e2dbc21f76bb66e2081d3280",
+    "src/ops/cnn.rs": "9cbc17b58eb00a23aaca14328cf5b229ed6c66824a3b16be33c8bb3d4c709702",
+    "src/ops/element_wise.rs": "58d2c9d841cbc3d199ade2d9c5937a118842b417c5ad44d24c175ed41200883a",
+    "src/ops/math.rs": "19cdfd528e480140b11873058f0f1a2b7a9dfe115bff7e0c50d8496e31c637e9",
+    "src/ops/mod.rs": "255f9473715e13c4560906b98890e0db26af676acc82578be75646e8d3f54a9b",
+    "src/ops/nn.rs": "72193eaecc55c5e8e9205a871e3fb09d567fe40d0137d99ad37b86ab089d6e61"
+  },
+  "modified_file": "src/ops/array.rs",
+  "modified_sha256": "582526de0b920529076e2ffa3ee19a88a766150d3c08c63d2db9e984bded8c7e",
+  "added_license_source": "https://github.com/sonos/tract/tree/v0.23.6",
+  "patch": "Constant-only float16 DEQUANTIZE promotion; f32 broadcast PReLU composed from existing min/max/multiply/add. All other integer/dynamic DEQUANTIZE forms rejected.",
+  "added_files": {
+    "LICENSE-MIT": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+    "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "bundle_url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+  "bundle_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+  "google_source_tag": "v0.10.21",
+  "license": "Apache-2.0",
+  "files": {
+    "detector-card.pdf": "cd335c06fc0de7807cd815a0777a697932598bcdb28fa98adaaabf847485f758",
+    "face-mesh-card.pdf": "c6add060f4ebfb37b2690136b6c711c7e5fcb7038baa2649ae3338b83979565a",
+    "geometry.pbtxt": "55ca7c4c7bf195673b9d12a1b5d49d4b9c82b5ade8fed4b565496590866e359d",
+    "canonical_face_model.obj": "8bac80443397e113f41a8b565ea72c59390bc031d9defab289dba7bc0c54e618",
+    "LICENSE-MEDIAPIPE": "8707eef0533987efc5b155d64761eeb6e20793f50b9bd1a68dad1cf4719d0ed8",
+    "face_landmarks_detector.tflite": "c7d54204ce0448474c7f3fa9af494787c0965cbdd6f20fc72867e43046bd43d5",
+    "face_detector.tflite": "b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f"
+  }
+}

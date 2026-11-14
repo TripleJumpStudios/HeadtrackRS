@@ -1,0 +1,13 @@
+# A source kind this build does not know (newer build or a hand edit).
+# Must load — falling back to webcam 0 — not be quarantined: that would cost the bindings.
+fov_diag_deg = 84.0
+
+[head_source]
+kind = "smoothtrack"
+port = 4242
+
+[[controller_bindings]]
+action = "recenter"
+device = "VKBsim Gladiator EVO R"
+code = 721
+label = "VKBsim Gladiator EVO R · BTN_TRIGGER_HAPPY18"

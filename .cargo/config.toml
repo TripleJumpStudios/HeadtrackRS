@@ -1,9 +1,9 @@
-# Cross-compilation configuration for the headtrack-npclient and headtrack-winebridge
-# Windows crates (built with --target x86_64-pc-windows-gnu).
+# Cross-compilation configuration for the headtrack-npclient Windows crate
+# (built with --target x86_64-pc-windows-gnu).
 #
-# These crates are NOT in the workspace members and must be built explicitly:
-#   cargo build -p headtrack-npclient --target x86_64-pc-windows-gnu --release
-#   cargo build -p headtrack-winebridge --target x86_64-pc-windows-gnu --release
+# It is NOT a workspace member and must be built explicitly:
+#   cargo build --manifest-path crates/headtrack-npclient/Cargo.toml \
+#       --target x86_64-pc-windows-gnu --release
 #
 # Requires: sudo dnf install mingw64-gcc
 

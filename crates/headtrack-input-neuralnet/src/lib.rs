@@ -2,16 +2,27 @@
 //!
 //! ## Pipeline
 //!
-//! A background thread owns the camera and both ONNX sessions.  On each
-//! webcam frame it runs:
+//! A background thread owns the camera and the ONNX sessions.  On each webcam
+//! frame it runs:
 //!
-//! 1. **Localizer** (`head-localizer.onnx`) — detects the head and returns a
-//!    bounding box.  Once a box is found, subsequent frames use the pose
-//!    estimator's refined box so the localizer only reruns after N consecutive
-//!    failures.
+//! 1. **YuNet** (`face_detection_yunet_2023mar.onnx`, MIT) — detects the face,
+//!    returning a bounding box and 5 keypoints. It does *not* run every frame:
+//!    optical flow carries the keypoints between detects, and the detector
+//!    re-runs on a fixed interval or when drift is detected. SCRFD
+//!    (`scrfd-det-10g.onnx`) is opt-in via `HEADTRACK_DETECTOR=scrfd` with a
+//!    user-supplied file — its weights are non-commercial research only, so it
+//!    is not bundled (P01, 2026-10-03; archived in `archive/models/`).
 //!
-//! 2. **Pose estimator** (`head-pose-0.2-big.onnx`) — crops the head region,
-//!    runs ONNX inference, returns a quaternion + 3D position.
+//! 2. **PnP** — solves the 5-keypoint set against a canonical 3D face model for
+//!    rotation and translation.
+//!
+//! 3. **6DRepNet** (`head-pose-mobilenetv3-large.onnx`) — regresses head
+//!    orientation directly and overrides PnP's rotation. This is the default;
+//!    `HEADTRACK_ROT_SOURCE=pnp` falls back to the geometric solve.
+//!
+//! 4. **Stable-landmark translation** — X/Y from the eye centroid, Z from
+//!    yaw-corrected interpupillary distance, then a physiological rate gate
+//!    (`z_gate`). `HEADTRACK_TRANS_SOURCE=pnp` falls back to the PnP `tvec`.
 //!
 //! `poll()` drains to the latest pose without blocking.
 //!
@@ -25,16 +36,33 @@
 //!
 //! ## Model files
 //!
-//! Download from the latest opentrack release and place in `assets/models/`:
-//! - `head-localizer.onnx`
-//! - `head-pose-0.2-big.onnx`
+//! Both are required; place them in `assets/models/`:
+//! - `face_detection_yunet_2023mar.onnx` — face detector (OpenCV Zoo, MIT)
+//! - `head-pose-mobilenetv3-large.onnx` — 6DRepNet rotation estimator
+//!
+//! SL3 deleted the legacy `head-localizer.onnx` + `head-pose-0.4-small-f32.onnx`
+//! chain; a missing detector model is now a startup error rather than a silent
+//! demotion to that path.
 
+mod capture_errors;
+mod frame_dump;
 mod image_proc;
-mod localizer;
-mod math;
-mod pose_estimator;
+mod landmark_position;
+mod z_gate;
+mod optical_flow;
+mod ort_session;
+mod pnp;
+mod pose_estimator_6drepnet;
+// Exposed (hidden) so `examples/detect_frames.rs` can run a detector over saved
+// frames without a camera — the offline half of the detector bake-off, and the
+// only way to verify the Rust decode against OpenCV's reference implementation.
+// Same role as headtrack-core's `examples/replay.rs`. Not a stable surface.
+#[doc(hidden)]
+pub mod scrfd_detector;
 mod tracker;
 mod v4l2_capture;
+#[doc(hidden)]
+pub mod yunet_detector;
 
 use anyhow::Context;
 use headtrack_core::{InputSource, RawPose};
@@ -49,10 +77,36 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use tracing::info;
-use localizer::Detection;
+use tracing::{debug, info};
+use scrfd_detector::Detection;
+use capture_errors::{is_device_gone, send_pose, sleep_unless_shutdown, CaptureErrors, CaptureStep};
+pub use tracker::MissingModel;
+
+/// Name of the face detector this process will use — `"yunet"` (default) or `"scrfd"`.
+///
+/// Resolves `HEADTRACK_DETECTOR` through the same function the tracker itself
+/// uses, so it reports what is *actually* running rather than what was asked
+/// for: an unrecognised value falls back to `yunet` here exactly as it does
+/// there.
+///
+/// Exists so captured data is self-describing. A diagnostic CSV that does not
+/// record which detector produced it is worthless the moment a second detector
+/// exists — you cannot tell an A from a B a week later, and the whole point of
+/// the recordings is comparing them.
+pub fn active_detector_name() -> &'static str {
+    tracker::read_detector_choice()
+}
 use tracker::{Tracker, TrackerConfig};
 use v4l2_capture::{V4l2YuyvCamera, yuyv_to_gray, yuyv_to_rgb};
+
+/// Channel element type for frames passed to the preview encoder thread.
+/// `(rgb, bbox, landmarks)` — landmarks may be empty when no fresh detection
+/// happened this frame.
+type PreviewFrame_ = (
+    ImageBuffer<Rgb<u8>, Vec<u8>>,
+    Option<Detection>,
+    Vec<(f32, f32)>,
+);
 
 /// Lock-free single-producer single-consumer preview frame slot.
 ///
@@ -67,12 +121,12 @@ impl Default for PreviewSlot {
 }
 
 impl PreviewSlot {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { ptr: AtomicPtr::new(std::ptr::null_mut()) }
     }
 
     /// Store a new JPEG frame. Frees the previous frame if any.
-    pub fn store(&self, jpeg: Vec<u8>) {
+    pub(crate) fn store(&self, jpeg: Vec<u8>) {
         let boxed = Box::into_raw(Box::new(jpeg));
         let old = self.ptr.swap(boxed, Ordering::AcqRel);
         if !old.is_null() {
@@ -131,14 +185,14 @@ impl LatestFrame {
 
     /// Store a new frame, replacing any unconsumed previous frame.
     fn store(&self, frame: Vec<u8>) {
-        let mut slot = self.data.lock().unwrap();
+        let mut slot = self.data.lock().unwrap_or_else(|e| e.into_inner());
         *slot = Some(frame);
         self.ready.notify_one();
     }
 
     /// Block until a new frame is available or `shutdown` is set.
     fn take_or_shutdown(&self, shutdown: &AtomicBool) -> Option<Vec<u8>> {
-        let mut slot = self.data.lock().unwrap();
+        let mut slot = self.data.lock().unwrap_or_else(|e| e.into_inner());
         loop {
             if shutdown.load(Ordering::Acquire) {
                 return None;
@@ -178,6 +232,9 @@ pub struct NeuralNetInput {
     overlay_enabled: Arc<AtomicBool>,
     /// Set to `true` on drop — signals all background threads to exit.
     shutdown: Arc<AtomicBool>,
+    /// The tracker thread's channel closed and that has been logged; `poll`
+    /// runs every 4 ms and must not repeat it (FINAL_REVIEW S2).
+    thread_lost: bool,
 }
 
 impl Drop for NeuralNetInput {
@@ -233,38 +290,29 @@ impl NeuralNetInput {
     ) -> anyhow::Result<Self> {
         let cfg = TrackerConfig::from_model_dir(model_dir, camera_index, fov_diag_deg);
 
-        let (pose_tx, pose_rx) = mpsc::channel::<RawPose>();
+        let (pose_tx, pose_rx) = mpsc::sync_channel::<RawPose>(64);
         let (init_tx, init_rx) = mpsc::sync_channel::<anyhow::Result<()>>(0);
 
         let preview: PreviewFrame = Arc::new(PreviewSlot::new());
         let preview_writer = Arc::clone(&preview);
         let overlay_flag = Arc::clone(&overlay_enabled);
 
-        let (frame_tx, frame_rx) =
-            mpsc::sync_channel::<(ImageBuffer<Rgb<u8>, Vec<u8>>, Option<Detection>)>(1);
+        let (frame_tx, frame_rx) = mpsc::sync_channel::<PreviewFrame_>(1);
 
         // Encoder thread — JPEG-encodes preview frames off the hot tracking path.
-        thread::Builder::new()
-            .name("preview-encoder".into())
-            .spawn(move || {
-                while let Ok((rgb, detection)) = frame_rx.recv() {
-                    let det = if overlay_flag.load(Ordering::Relaxed) {
-                        detection.as_ref()
-                    } else {
-                        None
-                    };
-                    if let Ok(jpeg) = encode_jpeg_preview(&rgb, det) {
-                        preview_writer.store(jpeg);
-                    }
-                }
-            })
-            .context("spawning preview encoder thread")?;
+        spawn_preview_encoder(frame_rx, preview_writer, overlay_flag)?;
+
+        // The thread must see the same flag `Drop` sets. It used to get none,
+        // so a camera switch left it running, camera and ORT sessions open,
+        // until it happened to fail a send (FINAL_REVIEW S2).
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let shutdown_tracker = Arc::clone(&shutdown);
 
         thread::Builder::new()
             .name("neuralnet-tracker".into())
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let mut tracker = match Tracker::new(&cfg) {
+                    let tracker = match Tracker::new(&cfg) {
                         Ok(t) => {
                             let _ = init_tx.send(Ok(()));
                             t
@@ -274,31 +322,7 @@ impl NeuralNetInput {
                             return;
                         }
                     };
-
-                    let mut frame_counter: u32 = 0;
-                    loop {
-                        frame_counter = frame_counter.wrapping_add(1);
-                        let want_frame = frame_counter.is_multiple_of(3);
-
-                        if want_frame {
-                            let (pose, frame) = tracker.step_with_frame();
-                            if let Some(pose) = pose {
-                                if pose_tx.send(pose).is_err() {
-                                    break;
-                                }
-                            }
-                            if let Some(rgb) = frame {
-                                let det = tracker.tracked_box();
-                                let _ = frame_tx.try_send((rgb, det));
-                            }
-                        } else {
-                            if let Some(pose) = tracker.step() {
-                                if pose_tx.send(pose).is_err() {
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    run_mjpeg_tracker_loop(tracker, pose_tx, frame_tx, &shutdown_tracker);
                 }));
                 if let Err(e) = result {
                     let msg = e.downcast_ref::<&str>().copied()
@@ -314,7 +338,7 @@ impl NeuralNetInput {
             .context("tracker thread exited before signalling init")?
             .context("tracker initialisation failed")?;
 
-        Ok(Self { rx: pose_rx, preview, overlay_enabled, shutdown: Arc::new(AtomicBool::new(false)) })
+        Ok(Self { rx: pose_rx, preview, overlay_enabled, shutdown, thread_lost: false })
     }
 
     /// YUYV path — decoupled capture and inference threads.
@@ -339,7 +363,7 @@ impl NeuralNetInput {
         let cfg = TrackerConfig::from_model_dir(model_dir, camera_index, fov_diag_deg);
         let (res_w, res_h) = cfg.camera_resolution;
 
-        let (pose_tx, pose_rx) = mpsc::channel::<RawPose>();
+        let (pose_tx, pose_rx) = mpsc::sync_channel::<RawPose>(64);
 
         let shutdown = Arc::new(AtomicBool::new(false));
 
@@ -347,25 +371,10 @@ impl NeuralNetInput {
         let preview_writer = Arc::clone(&preview);
         let overlay_flag = Arc::clone(&overlay_enabled);
 
-        let (frame_tx, frame_rx) =
-            mpsc::sync_channel::<(ImageBuffer<Rgb<u8>, Vec<u8>>, Option<Detection>)>(1);
+        let (frame_tx, frame_rx) = mpsc::sync_channel::<PreviewFrame_>(1);
 
         // Encoder thread — same as MJPEG path.
-        thread::Builder::new()
-            .name("preview-encoder".into())
-            .spawn(move || {
-                while let Ok((rgb, detection)) = frame_rx.recv() {
-                    let det = if overlay_flag.load(Ordering::Relaxed) {
-                        detection.as_ref()
-                    } else {
-                        None
-                    };
-                    if let Ok(jpeg) = encode_jpeg_preview(&rgb, det) {
-                        preview_writer.store(jpeg);
-                    }
-                }
-            })
-            .context("spawning preview encoder thread")?;
+        spawn_preview_encoder(frame_rx, preview_writer, overlay_flag)?;
 
         // Shared latest-frame slot between capture and inference threads.
         let latest = Arc::new(LatestFrame::new());
@@ -391,15 +400,52 @@ impl NeuralNetInput {
                     };
                     let _ = cam_init_tx.send(Ok(()));
 
+                    let mut errors = CaptureErrors::default();
                     loop {
                         if shutdown_capture.load(Ordering::Acquire) {
                             info!("yuyv capture: shutdown");
                             break;
                         }
                         match cam.frame_raw() {
-                            Ok(yuyv) => latest_writer.store(yuyv),
+                            Ok(yuyv) => {
+                                let n = errors.ok();
+                                if n > 0 {
+                                    debug!("yuyv capture recovered after {n} error(s)");
+                                }
+                                latest_writer.store(yuyv);
+                            }
                             Err(e) => {
-                                tracing::warn!("yuyv capture error: {e:#}");
+                                let now = Instant::now();
+                                match errors.error(now, is_device_gone(&e)) {
+                                    CaptureStep::Retry { warn, wait } => {
+                                        if warn {
+                                            tracing::warn!(
+                                                "yuyv capture error: {e:#} (retrying with \
+                                                 backoff; further errors at DEBUG)"
+                                            );
+                                        } else {
+                                            debug!("yuyv capture error: {e:#}");
+                                        }
+                                        if sleep_unless_shutdown(wait, &shutdown_capture) {
+                                            info!("yuyv capture: shutdown");
+                                            break;
+                                        }
+                                    }
+                                    CaptureStep::GiveUp => {
+                                        tracing::warn!(
+                                            "yuyv capture failed {} time(s) over {:.1}s ({e:#}); \
+                                             giving up — the camera is gone or unusable. Pick a \
+                                             camera again, or restart, once it is back",
+                                            errors.run_len(),
+                                            errors.run_age(now).as_secs_f32()
+                                        );
+                                        // End the inference thread too, so the
+                                        // pose channel closes and the engine
+                                        // sees the source is gone.
+                                        shutdown_capture.store(true, Ordering::Release);
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
@@ -441,6 +487,7 @@ impl NeuralNetInput {
                 let start = Instant::now();
                 let mut frame_counter: u32 = 0;
                 let mut step_count: u32 = 0;
+                let needs_rgb_every_frame = tracker.needs_rgb_every_frame();
 
                 loop {
                     let yuyv = match latest.take_or_shutdown(&shutdown_infer) {
@@ -455,62 +502,47 @@ impl NeuralNetInput {
                     let gray = yuyv_to_gray(&yuyv, res_w, res_h);
                     let t_gray = t0.elapsed();
 
-                    // Every 3rd frame, also produce RGB for preview.
+                    // RGB is needed every 3rd frame for the preview encoder, and
+                    // every frame when 6DRepNet is enabled (it consumes color
+                    // input). When neither applies, skip the YUYV→RGB conversion
+                    // to save ~3 ms of work per frame.
                     frame_counter = frame_counter.wrapping_add(1);
-                    let want_preview = frame_counter.is_multiple_of(3);
-
-                    if want_preview {
-                        let rgb = yuyv_to_rgb(&yuyv, res_w, res_h);
-                        drop(yuyv); // free 614KB YUYV buffer
-
-                        let pose = tracker.infer_gray(gray);
-                        let t_total = t0.elapsed();
-
-                        step_count += 1;
-                        if step_count.is_multiple_of(30) {
-                            info!(
-                                "yuyv step: gray={:.1}ms infer={:.1}ms total={:.1}ms",
-                                t_gray.as_secs_f64() * 1000.0,
-                                (t_total - t_gray).as_secs_f64() * 1000.0,
-                                t_total.as_secs_f64() * 1000.0,
-                            );
-                        }
-
-                        if let Some(p) = pose {
-                            let raw = RawPose {
-                                timestamp_us: start.elapsed().as_micros() as u64,
-                                ..p
-                            };
-                            if pose_tx.send(raw).is_err() {
-                                break;
-                            }
-                            // Send RGB to preview encoder.
-                            let det = tracker.tracked_box();
-                            let _ = frame_tx.try_send((rgb, det));
-                        }
+                    let needs_rgb = needs_rgb_every_frame || frame_counter.is_multiple_of(3);
+                    let rgb = if needs_rgb {
+                        Some(yuyv_to_rgb(&yuyv, res_w, res_h))
                     } else {
-                        drop(yuyv);
+                        None
+                    };
+                    drop(yuyv); // free 614KB YUYV buffer
 
-                        let pose = tracker.infer_gray(gray);
-                        let t_total = t0.elapsed();
+                    let pose = tracker.infer_gray(gray, rgb.as_ref());
+                    let t_total = t0.elapsed();
 
-                        step_count += 1;
-                        if step_count.is_multiple_of(30) {
-                            info!(
-                                "yuyv step: gray={:.1}ms infer={:.1}ms total={:.1}ms",
-                                t_gray.as_secs_f64() * 1000.0,
-                                (t_total - t_gray).as_secs_f64() * 1000.0,
-                                t_total.as_secs_f64() * 1000.0,
-                            );
+                    step_count += 1;
+                    if step_count.is_multiple_of(30) {
+                        debug!(
+                            "yuyv step: gray={:.1}ms infer={:.1}ms total={:.1}ms",
+                            t_gray.as_secs_f64() * 1000.0,
+                            (t_total - t_gray).as_secs_f64() * 1000.0,
+                            t_total.as_secs_f64() * 1000.0,
+                        );
+                    }
+
+                    if let Some(p) = pose {
+                        let raw = RawPose {
+                            timestamp_us: start.elapsed().as_micros() as u64,
+                            ..p
+                        };
+                        if !send_pose(&pose_tx, raw) {
+                            break;
                         }
-
-                        if let Some(p) = pose {
-                            let raw = RawPose {
-                                timestamp_us: start.elapsed().as_micros() as u64,
-                                ..p
-                            };
-                            if pose_tx.send(raw).is_err() {
-                                break;
+                        // Only forward to the preview encoder every 3rd frame,
+                        // regardless of whether 6DRepNet also consumed the RGB.
+                        if let Some(rgb) = rgb {
+                            if frame_counter.is_multiple_of(3) {
+                                let det = tracker.tracked_box();
+                                let lmks = tracker.last_landmarks_for_overlay();
+                                let _ = frame_tx.try_send((rgb, det, lmks));
                             }
                         }
                     }
@@ -523,7 +555,7 @@ impl NeuralNetInput {
             .context("inference thread exited before signalling init")?
             .context("model loading failed")?;
 
-        Ok(Self { rx: pose_rx, preview, overlay_enabled, shutdown })
+        Ok(Self { rx: pose_rx, preview, overlay_enabled, shutdown, thread_lost: false })
     }
 
     /// Get a handle to the latest preview frame (JPEG bytes).
@@ -554,7 +586,12 @@ impl InputSource for NeuralNetInput {
                 Ok(pose) => latest = Some(pose),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
-                    tracing::error!("tracker thread exited unexpectedly — camera disconnected or thread panicked");
+                    // Once per source, not once per 4 ms tick (FINAL_REVIEW S2).
+                    if !std::mem::replace(&mut self.thread_lost, true) {
+                        tracing::error!(
+                            "tracker thread exited unexpectedly — camera disconnected or thread panicked"
+                        );
+                    }
                     break;
                 }
             }
@@ -571,26 +608,128 @@ impl InputSource for NeuralNetInput {
     }
 }
 
-/// Encode an RGB image to JPEG at low quality for preview display.
-/// Downscales to 320x240 to keep the JPEG small (~5-15 KB).
+/// Inner loop for the MJPEG tracker thread.
+///
+/// Runs `step_with_frame` every 3rd iteration (to supply the preview encoder)
+/// and the faster `step` on interleaved frames to keep pose rate high.
+/// Returns when `shutdown` is set (the source was dropped), when the pose
+/// channel is closed (consumer dropped), or when capture gives up
+/// ([`capture_errors`]). A full channel drops the pose and carries on.
+fn run_mjpeg_tracker_loop(
+    mut tracker: Tracker,
+    pose_tx: mpsc::SyncSender<RawPose>,
+    frame_tx: mpsc::SyncSender<PreviewFrame_>,
+    shutdown: &AtomicBool,
+) {
+    let mut frame_counter: u32 = 0;
+    loop {
+        if shutdown.load(Ordering::Acquire) {
+            info!("neuralnet tracker: shutdown");
+            break;
+        }
+        frame_counter = frame_counter.wrapping_add(1);
+
+        if frame_counter.is_multiple_of(3) {
+            let (pose, frame) = tracker.step_with_frame();
+            if let Some(pose) = pose {
+                if !send_pose(&pose_tx, pose) { break; }
+            }
+            if let Some(rgb) = frame {
+                let det = tracker.tracked_box();
+                let lmks = tracker.last_landmarks_for_overlay();
+                let _ = frame_tx.try_send((rgb, det, lmks));
+            }
+        } else if let Some(pose) = tracker.step() {
+            if !send_pose(&pose_tx, pose) { break; }
+        }
+
+        match tracker.take_capture_step() {
+            None | Some(CaptureStep::Retry { wait: Duration::ZERO, .. }) => {}
+            Some(CaptureStep::Retry { wait, .. }) => {
+                if sleep_unless_shutdown(wait, shutdown) {
+                    info!("neuralnet tracker: shutdown");
+                    break;
+                }
+            }
+            // Ending the thread closes the pose channel: the engine sees it.
+            Some(CaptureStep::GiveUp) => break,
+        }
+    }
+}
+
+/// Spawn the JPEG preview encoder thread shared by both MJPEG and YUYV paths.
+///
+/// Receives `(rgb, detection)` frames, JPEG-encodes them off the hot tracking
+/// path, and stores the result into `preview_writer`.
+fn spawn_preview_encoder(
+    frame_rx: mpsc::Receiver<PreviewFrame_>,
+    preview_writer: PreviewFrame,
+    overlay_flag: Arc<AtomicBool>,
+) -> anyhow::Result<()> {
+    thread::Builder::new()
+        .name("preview-encoder".into())
+        .spawn(move || {
+            while let Ok((rgb, detection, landmarks)) = frame_rx.recv() {
+                let (det, lmks) = if overlay_flag.load(Ordering::Relaxed) {
+                    (detection.as_ref(), landmarks.as_slice())
+                } else {
+                    (None, &[][..])
+                };
+                if let Ok(jpeg) = encode_jpeg_preview(&rgb, det, lmks) {
+                    preview_writer.store(jpeg);
+                }
+            }
+        })
+        .context("spawning preview encoder thread")?;
+    Ok(())
+}
+
+/// Encode an RGB image to JPEG for preview display.
+///
+/// Downscales to at most 640 px wide (never upscaled), **preserving the source
+/// aspect ratio**, with a Triangle filter at quality 80. It was 320 px,
+/// nearest-neighbour, quality 60, which the GUI then stretched to a column
+/// several times that width: blocky, with aliased edges (6e). The cost rose
+/// from ~2.5-2.9 ms to ~11-16 ms per frame (960×540…1920×1080, release),
+/// on this thread, not the tracking loop's.
+///
+/// The height was fixed at 240 for a long time, which silently anamorphosed
+/// every non-4:3 camera: the Elgato Facecam's native 960×540 was squashed by
+/// 1.33× horizontally, so faces in the preview were a third narrower than
+/// reality. Tracking was unaffected (it reads the full-res
+/// frame, never this thumbnail) — but the preview is what a user checks their
+/// framing against.
+///
 /// If a `Detection` is provided, draws the head bounding box on the thumbnail.
+/// If `landmarks` is non-empty, draws each landmark as a small dot — used by
+/// the Phase A diagnostic to visually verify that the 2D106 model's points
+/// stick to fixed anatomical features during head rotation. Without that
+/// confirmation, no downstream PnP / bundle-adjustment fix can succeed.
 fn encode_jpeg_preview(
     rgb: &image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
     detection: Option<&Detection>,
+    landmarks: &[(f32, f32)],
 ) -> anyhow::Result<Vec<u8>> {
     use image::imageops::FilterType;
     use std::io::Cursor;
 
-    const THUMB_W: u32 = 320;
-    const THUMB_H: u32 = 240;
+    const MAX_THUMB_W: u32 = 640;
+    const QUALITY: u8 = 80;
 
-    // Downscale to 320x240 for the preview thumbnail.
-    let mut thumb = image::imageops::resize(rgb, THUMB_W, THUMB_H, FilterType::Nearest);
+    // Never wider than the source: upscaling adds bytes, not detail.
+    let thumb_w = MAX_THUMB_W.min(rgb.width()).max(1);
+    // Height follows the source, so the scale is uniform on both axes and the
+    // preview shows the camera's real geometry.
+    let thumb_h = ((thumb_w as f32 * rgb.height() as f32) / rgb.width().max(1) as f32)
+        .round()
+        .max(1.0) as u32;
+
+    let mut thumb = image::imageops::resize(rgb, thumb_w, thumb_h, FilterType::Triangle);
+    let scale_x = thumb_w as f32 / rgb.width() as f32;
+    let scale_y = thumb_h as f32 / rgb.height() as f32;
 
     // Draw bounding box overlay if we have a detection.
     if let Some(det) = detection {
-        let scale_x = THUMB_W as f32 / rgb.width() as f32;
-        let scale_y = THUMB_H as f32 / rgb.height() as f32;
         draw_rect(
             &mut thumb,
             (det.x * scale_x) as i32,
@@ -601,16 +740,68 @@ fn encode_jpeg_preview(
         );
     }
 
+    // Draw each landmark as a 3×3 magenta dot so they pop on faces of any
+    // skin tone. Index 0 (chin) gets a different colour so the user can
+    // visually anchor their orientation while sweeping the head.
+    for (i, &(x, y)) in landmarks.iter().enumerate() {
+        let tx = (x * scale_x) as i32;
+        let ty = (y * scale_y) as i32;
+        let colour = if i == 0 {
+            image::Rgb([255, 255, 0]) // yellow chin
+        } else if i == 86 {
+            image::Rgb([0, 255, 255]) // cyan nose tip
+        } else {
+            image::Rgb([255, 0, 255]) // magenta everything else
+        };
+        draw_dot(&mut thumb, tx, ty, colour);
+    }
+
     let mut buf = Cursor::new(Vec::new());
-    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 60);
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, QUALITY);
     image::ImageEncoder::write_image(
         encoder,
         thumb.as_raw(),
-        THUMB_W,
-        THUMB_H,
+        thumb_w,
+        thumb_h,
         image::ExtendedColorType::Rgb8,
     )?;
     Ok(buf.into_inner())
+}
+
+/// Draw a 3×3 filled dot centred at `(x, y)`, clamped to image bounds.
+fn draw_dot(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, x: i32, y: i32, color: image::Rgb<u8>) {
+    let (iw, ih) = (img.width() as i32, img.height() as i32);
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let px = x + dx;
+            let py = y + dy;
+            if px >= 0 && px < iw && py >= 0 && py < ih {
+                img.put_pixel(px as u32, py as u32, color);
+            }
+        }
+    }
+}
+
+/// Draw a single horizontal line segment at row `y` from column `x0` to `x1`, clamped.
+fn draw_h_line(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, y: i32, x0: i32, x1: i32, color: image::Rgb<u8>) {
+    let (iw, ih) = (img.width() as i32, img.height() as i32);
+    if y < 0 || y >= ih { return; }
+    for x in x0..=x1 {
+        if x >= 0 && x < iw {
+            img.put_pixel(x as u32, y as u32, color);
+        }
+    }
+}
+
+/// Draw a single vertical line segment at column `x` from row `y0` to `y1`, clamped.
+fn draw_v_line(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, x: i32, y0: i32, y1: i32, color: image::Rgb<u8>) {
+    let (iw, ih) = (img.width() as i32, img.height() as i32);
+    if x < 0 || x >= iw { return; }
+    for y in y0..=y1 {
+        if y >= 0 && y < ih {
+            img.put_pixel(x as u32, y as u32, color);
+        }
+    }
 }
 
 /// Draw a 2px rectangle outline on an RGB image (clamped to bounds).
@@ -622,37 +813,40 @@ fn draw_rect(
     h: u32,
     color: image::Rgb<u8>,
 ) {
-    let (iw, ih) = (img.width() as i32, img.height() as i32);
-
-    // Draw horizontal lines (top + bottom edges).
-    for thickness in 0..2i32 {
-        let top = y + thickness;
-        let bot = y + h as i32 - 1 - thickness;
-        for px in x..=(x + w as i32 - 1) {
-            if px >= 0 && px < iw {
-                if top >= 0 && top < ih {
-                    img.put_pixel(px as u32, top as u32, color);
-                }
-                if bot >= 0 && bot < ih {
-                    img.put_pixel(px as u32, bot as u32, color);
-                }
-            }
-        }
+    let x1 = x + w as i32 - 1;
+    let y1 = y + h as i32 - 1;
+    for t in 0..2i32 {
+        draw_h_line(img, y + t,  x, x1, color); // top edge
+        draw_h_line(img, y1 - t, x, x1, color); // bottom edge
+        draw_v_line(img, x + t,  y, y1, color); // left edge
+        draw_v_line(img, x1 - t, y, y1, color); // right edge
     }
+}
 
-    // Draw vertical lines (left + right edges).
-    for thickness in 0..2i32 {
-        let left = x + thickness;
-        let right = x + w as i32 - 1 - thickness;
-        for py in y..=(y + h as i32 - 1) {
-            if py >= 0 && py < ih {
-                if left >= 0 && left < iw {
-                    img.put_pixel(left as u32, py as u32, color);
-                }
-                if right >= 0 && right < iw {
-                    img.put_pixel(right as u32, py as u32, color);
-                }
-            }
-        }
+#[cfg(test)]
+mod lost_thread_tests {
+    use super::*;
+
+    /// S2: a dead tracker thread is noted once, not on every 4 ms engine tick,
+    /// and dropping the source sets the flag its threads watch.
+    #[test]
+    fn a_lost_tracker_thread_is_noted_once_and_drop_signals_shutdown() {
+        let (tx, rx) = mpsc::sync_channel::<RawPose>(1);
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let mut input = NeuralNetInput {
+            rx,
+            preview: Arc::new(PreviewSlot::new()),
+            overlay_enabled: Arc::new(AtomicBool::new(false)),
+            shutdown: Arc::clone(&shutdown),
+            thread_lost: false,
+        };
+        assert!(input.poll().is_none());
+        assert!(!input.thread_lost, "an empty channel is not a lost thread");
+        drop(tx);
+        assert!(input.poll().is_none());
+        assert!(input.thread_lost);
+        assert!(input.poll().is_none(), "later ticks stay quiet");
+        drop(input);
+        assert!(shutdown.load(Ordering::Acquire));
     }
 }

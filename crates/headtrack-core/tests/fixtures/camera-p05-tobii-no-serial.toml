@@ -1,0 +1,5 @@
+# Tobii active, no serial (single tracker), never used a non-default webcam.
+fov_diag_deg = 78.0
+
+[head_source]
+kind = "tobii"

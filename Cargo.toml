@@ -13,12 +13,14 @@ members = [
     "crates/headtrack-output-simconnect",
     "crates/headtrack-tester",
     "crates/headtrack-gui",
+    "crates/headtrack-tobii-device",
+    "crates/headtrack-input-tobii",
 ]
 resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "0.1.0"
+version = "0.2.0"
 license = "MIT"
 
 # Optimize external deps in debug builds — critical for image processing throughput.
@@ -31,9 +33,16 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 2
 
+# tract-tflite 0.23.6 needs two narrow import additions (constant float16
+# DEQUANTIZE promotion, PReLU composition) for the Tobii head models; the patched
+# snapshot is in-repo and pinned by vendor/tract-tflite/TRACT_SNAPSHOT.json
+# (headtrack-input-tobii's test `tract_snapshot_hashes_verify` checks it).
+[patch.crates-io]
+tract-tflite = { path = "vendor/tract-tflite" }
+
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net", "io-util", "macros", "signal", "fs"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -47,3 +56,8 @@ thiserror = "2"
 # Logging / tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Linear algebra — used by the PnP solver and optical-flow tracker in
+# headtrack-input-neuralnet. Pinned at workspace level so future crates picking
+# this up share a single version.
+nalgebra = "0.34"

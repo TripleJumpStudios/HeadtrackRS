@@ -1,0 +1,2 @@
+# Earliest camera.toml shape: written by v0.1.x before any optional field existed.
+fov_diag_deg = 60.0

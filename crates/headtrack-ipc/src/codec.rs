@@ -6,22 +6,6 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 /// At 250 Hz a capacity of 64 gives ~256 ms of headroom before frames are dropped.
 pub const CHANNEL_CAPACITY: usize = 64;
 
-/// Encode a [`Pose`] as a length-prefixed bincode frame.
-///
-/// Wire format:
-/// ```text
-/// [ u32 LE payload_len ][ bincode(Pose) ]
-/// ```
-pub fn encode(pose: &Pose) -> Vec<u8> {
-    // Pose is 7 fields (6×f32 + u64) = 32 bytes bincode. Pre-allocate once.
-    let mut buf = Vec::with_capacity(4 + 32);
-    buf.extend_from_slice(&[0u8; 4]); // placeholder for length prefix
-    bincode::serialize_into(&mut buf, pose).expect("Pose serialization is infallible");
-    let payload_len = (buf.len() - 4) as u32;
-    buf[..4].copy_from_slice(&payload_len.to_le_bytes());
-    buf
-}
-
 /// Read one length-prefixed frame from `reader` and deserialise it as a [`Pose`].
 pub async fn read_frame<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Pose> {
     let mut len_buf = [0u8; 4];
@@ -73,4 +57,107 @@ pub async fn write_frame<W: AsyncWrite + Unpin>(writer: &mut W, pose: &Pose) -> 
         .write_all(&encode_stack(pose))
         .await
         .context("writing pose frame")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Distinctive values in every field, so a transposition or a wrong offset
+    /// shows up as a wrong field rather than a coincidentally equal one.
+    fn sample() -> Pose {
+        Pose {
+            yaw: 1.5,
+            pitch: -2.25,
+            roll: 3.125,
+            x: -4.0625,
+            y: 5.5,
+            z: -6.75,
+            timestamp_us: 0x0123_4567_89AB_CDEF,
+        }
+    }
+
+    /// The load-bearing claim in `encode_stack`'s doc comment.
+    ///
+    /// `encode_stack` is hand-written byte-shuffling; `read_frame` — the only
+    /// decoder, used by the X-Plane plugin and `headtrack-tester` — deserialises
+    /// with bincode. Nothing enforced that the two agree, so a field reordered
+    /// in `Pose` would keep compiling, keep passing every other test, and feed
+    /// every external client silently wrong numbers.
+    #[test]
+    fn encode_stack_matches_bincode() {
+        let pose = sample();
+        let bincode_payload = bincode::serialize(&pose).expect("Pose serialises");
+        let stack = encode_stack(&pose);
+
+        assert_eq!(
+            bincode_payload.len(),
+            32,
+            "Pose is expected to bincode to exactly 32 bytes; encode_stack's \
+             fixed 36-byte buffer and hard-coded length prefix both assume it"
+        );
+        assert_eq!(
+            &stack[4..],
+            &bincode_payload[..],
+            "encode_stack no longer matches bincode — external clients decode \
+             with bincode, so they would receive wrong values"
+        );
+        assert_eq!(
+            u32::from_le_bytes(stack[..4].try_into().unwrap()),
+            bincode_payload.len() as u32,
+            "length prefix must describe the payload that follows it"
+        );
+    }
+
+    /// The documented wire layout, asserted at explicit offsets.
+    #[test]
+    fn encode_stack_wire_layout_is_stable() {
+        let pose = sample();
+        let b = encode_stack(&pose);
+
+        assert_eq!(b.len(), 36);
+        assert_eq!(u32::from_le_bytes(b[0..4].try_into().unwrap()), 32);
+        assert_eq!(f32::from_le_bytes(b[4..8].try_into().unwrap()), pose.yaw);
+        assert_eq!(f32::from_le_bytes(b[8..12].try_into().unwrap()), pose.pitch);
+        assert_eq!(f32::from_le_bytes(b[12..16].try_into().unwrap()), pose.roll);
+        assert_eq!(f32::from_le_bytes(b[16..20].try_into().unwrap()), pose.x);
+        assert_eq!(f32::from_le_bytes(b[20..24].try_into().unwrap()), pose.y);
+        assert_eq!(f32::from_le_bytes(b[24..28].try_into().unwrap()), pose.z);
+        assert_eq!(u64::from_le_bytes(b[28..36].try_into().unwrap()), pose.timestamp_us);
+    }
+
+    /// End-to-end through the real decoder: what the writer emits is what a
+    /// plugin reads back.
+    #[tokio::test]
+    async fn write_frame_round_trips_through_read_frame() {
+        let pose = sample();
+        let mut wire = Vec::new();
+        write_frame(&mut wire, &pose).await.expect("write");
+
+        let mut cursor = std::io::Cursor::new(wire);
+        let decoded = read_frame(&mut cursor).await.expect("read");
+
+        assert_eq!(decoded.yaw, pose.yaw);
+        assert_eq!(decoded.pitch, pose.pitch);
+        assert_eq!(decoded.roll, pose.roll);
+        assert_eq!(decoded.x, pose.x);
+        assert_eq!(decoded.y, pose.y);
+        assert_eq!(decoded.z, pose.z);
+        assert_eq!(decoded.timestamp_us, pose.timestamp_us);
+    }
+
+    /// The `MAX_PAYLOAD` guard: a hostile length prefix must be rejected before
+    /// the allocation, not after.
+    #[tokio::test]
+    async fn read_frame_rejects_an_oversized_length_prefix() {
+        let mut wire = Vec::new();
+        wire.extend_from_slice(&u32::MAX.to_le_bytes());
+
+        let mut cursor = std::io::Cursor::new(wire);
+        let err = read_frame(&mut cursor).await.expect_err("must reject");
+        assert!(
+            err.to_string().contains("too large"),
+            "expected the size guard to fire, got: {err}"
+        );
+    }
 }

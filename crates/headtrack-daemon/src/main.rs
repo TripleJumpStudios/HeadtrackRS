@@ -3,11 +3,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 fn main() -> Result<()> {
+    // The daemon is a terminal tool with no UI to report state, so it defaults
+    // to the startup narrative. The GUI defaults to `warn` instead — nobody
+    // reads its stdout, and it shows camera, profile and per-sim link status on
+    // screen. `log_filter` keeps ORT's arena logging out of both.
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("headtrackd=warn".parse()?),
-        )
+        .with_env_filter(headtrack_engine::log_filter("info"))
         .init();
 
     // Start the engine — opens camera, binds IPC socket, spawns all tasks.

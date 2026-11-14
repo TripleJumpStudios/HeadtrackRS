@@ -28,6 +28,12 @@ const V4L2_CID_EXPOSURE_ABSOLUTE: u32 = 0x009a_0902;
 // V4L2_CID_EXPOSURE_AUTO_PRIORITY: bool — when 1, driver may drop fps to accommodate exposure.
 // Must be 0 to honour the requested frame rate in manual exposure mode.
 const V4L2_CID_EXPOSURE_AUTO_PRIORITY: u32 = 0x009a_0903;
+// V4L2_CID_AUTO_WHITE_BALANCE: bool — 0 freezes white balance at its current temperature.
+const V4L2_CID_AUTO_WHITE_BALANCE: u32 = 0x0098_090c;
+// V4L2_CID_GAIN: integer — sensor analogue gain (AGC writes this while auto-exposure is on).
+const V4L2_CID_GAIN: u32 = 0x0098_0913;
+// V4L2_CID_WHITE_BALANCE_TEMPERATURE: integer Kelvin (read back for logging after the lock).
+const V4L2_CID_WHITE_BALANCE_TEMPERATURE: u32 = 0x0098_091a;
 
 /// Per-camera V4L2 control overrides applied after format negotiation.
 ///
@@ -40,11 +46,22 @@ struct CameraQuirks {
     /// (in V4L2 units of 100 µs).  150 = 15 ms — bright-room sweet spot for
     /// the Delan Cam 1 at 60 fps.
     exposure_100us: Option<i64>,
+    /// If `true`, let auto-exposure/AGC/AWB converge for a couple of seconds
+    /// after the stream starts, then freeze them at their settled values (see
+    /// [`maybe_lock_exposure`]). Unlike `exposure_100us` this adapts to the
+    /// room's actual lighting instead of hardcoding a shutter time.
+    lock_on_settle: bool,
 }
 
 const CAMERA_QUIRKS: &[CameraQuirks] = &[
-    CameraQuirks { name_contains: "delan", exposure_100us: Some(156) },
+    CameraQuirks { name_contains: "delan",   exposure_100us: Some(156), lock_on_settle: false },
+    // Elgato Facecam MK.2 — AE/AGC steps shift landmark positions and
+    // manufacture pose pops, so freeze the image once the camera has settled.
+    CameraQuirks { name_contains: "facecam", exposure_100us: None,      lock_on_settle: true },
 ];
+
+/// How long to let auto-exposure/AGC/AWB converge before freezing them.
+const EXPOSURE_SETTLE: std::time::Duration = std::time::Duration::from_millis(2500);
 
 /// Raw V4L2 camera that bypasses nokhwa entirely.
 pub struct V4l2Camera {
@@ -137,7 +154,7 @@ impl V4l2Camera {
         let t_dec = t0.elapsed() - t_cap;
 
         if self.frame_count.is_multiple_of(30) {
-            info!(
+            tracing::debug!(
                 "v4l2 frame: cap={:.1}ms decode={:.1}ms jpeg={}KB",
                 t_cap.as_secs_f64() * 1000.0,
                 t_dec.as_secs_f64() * 1000.0,
@@ -241,7 +258,7 @@ impl V4l2YuyvCamera {
             warn!("yuyv capture stall: {:.0}ms (camera may have frozen)", t_cap.as_millis());
         }
         if self.frame_count.is_multiple_of(30) {
-            info!(
+            tracing::debug!(
                 "v4l2 yuyv frame: cap={:.1}ms size={}KB",
                 t_cap.as_secs_f64() * 1000.0,
                 owned.len() / 1024,
@@ -261,12 +278,14 @@ impl V4l2YuyvCamera {
 /// YUYV layout: [Y0, U, Y1, V, Y2, U, Y3, V, ...].  Every other byte
 /// starting at offset 0 is a Y sample.  Zero computation — just a byte copy.
 pub fn yuyv_to_gray(yuyv: &[u8], width: u32, height: u32) -> GrayImage {
+    if yuyv.len() < (width * height) as usize * 2 {
+        return GrayImage::new(width, height);
+    }
     let npx = (width * height) as usize;
     let mut gray = Vec::with_capacity(npx);
 
     // Process 4 bytes at a time (2 pixels): [Y0, U, Y1, V]
-    let chunks = yuyv.chunks_exact(4);
-    for chunk in chunks {
+    for chunk in yuyv.as_chunks::<4>().0 {
         gray.push(chunk[0]); // Y0
         gray.push(chunk[2]); // Y1
     }
@@ -284,11 +303,14 @@ pub fn yuyv_to_gray(yuyv: &[u8], width: u32, height: u32) -> GrayImage {
 ///
 /// Fixed-point to avoid per-pixel float ops.
 pub fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    if yuyv.len() < (width * height) as usize * 2 {
+        return ImageBuffer::new(width, height);
+    }
     let npx = (width * height) as usize;
     let mut rgb = Vec::with_capacity(npx * 3);
 
     // Process 4 bytes at a time (2 pixels sharing U/V): [Y0, U, Y1, V]
-    for chunk in yuyv.chunks_exact(4) {
+    for chunk in yuyv.as_chunks::<4>().0 {
         let y0 = chunk[0] as i32;
         let u = chunk[1] as i32 - 128;
         let v = chunk[3] as i32 - 128;
@@ -323,6 +345,77 @@ pub fn disable_framerate_priority(camera_index: u32) {
     match dev.set_control(Control { id: V4L2_CID_EXPOSURE_AUTO_PRIORITY, value: Value::Boolean(false) }) {
         Ok(()) => info!("v4l2: exposure_dynamic_framerate disabled for camera {camera_index}"),
         Err(e) => warn!("v4l2: couldn't disable framerate priority for camera {camera_index}: {e}"),
+    }
+}
+
+/// Freeze exposure, gain, and white balance at their settled values (D8 fix).
+///
+/// Only acts on cameras whose quirk entry sets `lock_on_settle`, and can be
+/// disabled with `HEADTRACK_NO_EXPOSURE_LOCK=1` (reverts to live AE/AGC —
+/// useful for A/B or if the locked image comes out wrong for the lighting).
+///
+/// Spawns a detached thread: sleep [`EXPOSURE_SETTLE`] so AE/AGC/AWB converge
+/// on the actual scene, then open a second fd on the device (allowed while
+/// streaming, same as [`disable_framerate_priority`]) and switch the auto
+/// modes off. UVC devices hold their current values when switched to manual,
+/// so this locks at the settled operating point; the values are read back and
+/// logged so a wrong lock is visible in the log. Works for both the nokhwa
+/// and raw-V4L2 backends since it goes through its own fd.
+pub fn maybe_lock_exposure(camera_index: u32) {
+    if headtrack_core::env_flag("HEADTRACK_NO_EXPOSURE_LOCK") {
+        info!("v4l2: exposure lock disabled (HEADTRACK_NO_EXPOSURE_LOCK=1)");
+        return;
+    }
+    let sysfs_name = std::fs::read_to_string(
+        format!("/sys/class/video4linux/video{camera_index}/name")
+    )
+    .unwrap_or_default();
+    let sysfs_lower = sysfs_name.trim().to_lowercase();
+    let wants_lock = CAMERA_QUIRKS
+        .iter()
+        .any(|q| q.lock_on_settle && sysfs_lower.contains(q.name_contains));
+    if !wants_lock {
+        return;
+    }
+
+    let name = sysfs_name.trim().to_string();
+    let spawned = std::thread::Builder::new()
+        .name("exposure-lock".into())
+        .spawn(move || {
+            std::thread::sleep(EXPOSURE_SETTLE);
+            let path = format!("/dev/video{camera_index}");
+            let Ok(dev) = Device::with_path(&path) else {
+                info!("v4l2: exposure lock skipped — {path} no longer open ('{name}')");
+                return;
+            };
+            // Switch to manual exposure — the device keeps its settled shutter.
+            match dev.set_control(Control { id: V4L2_CID_EXPOSURE_AUTO, value: Value::Integer(1) }) {
+                Ok(()) => info!("v4l2: '{name}' auto-exposure frozen at settled value"),
+                Err(e) => warn!("v4l2: '{name}' couldn't freeze auto-exposure: {e}"),
+            }
+            // Freeze white balance at the settled temperature.
+            match dev.set_control(Control { id: V4L2_CID_AUTO_WHITE_BALANCE, value: Value::Boolean(false) }) {
+                Ok(()) => info!("v4l2: '{name}' auto white balance frozen"),
+                Err(e) => warn!("v4l2: '{name}' couldn't freeze white balance: {e}"),
+            }
+            // Read back the locked operating point so a bad lock is diagnosable.
+            let read_int = |id: u32| -> Option<i64> {
+                match dev.control(id).ok()?.value {
+                    Value::Integer(v) => Some(v),
+                    Value::Boolean(b) => Some(b as i64),
+                    _ => None,
+                }
+            };
+            info!(
+                "v4l2: '{name}' locked — exposure={:?} (100µs units) gain={:?} wb_temp={:?}K \
+                 (HEADTRACK_NO_EXPOSURE_LOCK=1 reverts)",
+                read_int(V4L2_CID_EXPOSURE_ABSOLUTE),
+                read_int(V4L2_CID_GAIN),
+                read_int(V4L2_CID_WHITE_BALANCE_TEMPERATURE),
+            );
+        });
+    if let Err(e) = spawned {
+        warn!("v4l2: couldn't spawn exposure-lock thread: {e}");
     }
 }
 

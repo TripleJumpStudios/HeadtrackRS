@@ -6,7 +6,7 @@ license.workspace = true
 description = "Generic UDP output in opentrack-compatible format"
 
 [dependencies]
-headtrack-core = { path = "../headtrack-core" }
-tokio = { workspace = true }
-anyhow = { workspace = true }
-tracing = { workspace = true }
+# Intentionally empty. This crate is a declared Phase 4 deliverable and
+# currently contains only its module documentation. Dependencies are added
+# when the implementation lands — carrying tokio/anyhow/tracing here made the
+# workspace resolve and build them for a crate that used none of them.

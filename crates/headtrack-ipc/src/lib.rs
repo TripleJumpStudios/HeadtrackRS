@@ -31,12 +31,21 @@ pub fn cmd_socket_path() -> PathBuf {
 
 /// Preview frame path: `$XDG_RUNTIME_DIR/headtrack-preview.jpg`.
 ///
-/// The daemon writes JPEG preview frames here; the GUI reads them for the
-/// camera preview display.
-pub fn preview_path() -> PathBuf {
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(runtime_dir).join("headtrack-preview.jpg")
+/// The engine writes JPEG preview frames here for external tools; the GUI
+/// reads the in-memory copy instead.
+///
+/// `None` when `XDG_RUNTIME_DIR` is unset or empty. The preview is a live
+/// picture of the user's face, and the only other place to put it is a shared
+/// directory such as `/tmp`, readable by any local user (FINAL_REVIEW S5). With
+/// no private runtime directory the external preview is simply not written.
+pub fn preview_path() -> Option<PathBuf> {
+    preview_path_in(std::env::var_os("XDG_RUNTIME_DIR"))
+}
+
+fn preview_path_in(runtime_dir: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    runtime_dir
+        .filter(|d| !d.is_empty())
+        .map(|d| PathBuf::from(d).join("headtrack-preview.jpg"))
 }
 
 /// Parameter log socket path: `$XDG_RUNTIME_DIR/headtrack-paramlog.sock`.
@@ -69,4 +78,19 @@ pub fn send_cmd(cmd: &str) -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod preview_path_tests {
+    use super::*;
+
+    #[test]
+    fn the_preview_never_falls_back_to_a_shared_directory() {
+        assert_eq!(preview_path_in(None), None);
+        assert_eq!(preview_path_in(Some("".into())), None);
+        assert_eq!(
+            preview_path_in(Some("/run/user/1000".into())),
+            Some(PathBuf::from("/run/user/1000/headtrack-preview.jpg"))
+        );
+    }
 }

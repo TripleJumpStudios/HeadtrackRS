@@ -1,7 +1,9 @@
 [package]
 name = "headtrack-output-simconnect"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MSFS 2024 SimConnect TCP output adapter (SU5 Camera API)"
 
 [dependencies]
 headtrack-core = { path = "../headtrack-core" }
@@ -10,4 +12,4 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true }

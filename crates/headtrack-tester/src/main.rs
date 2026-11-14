@@ -220,19 +220,7 @@ impl GuideState {
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
-fn render_live(stats: &Stats, connected: bool, frozen: bool) {
-    let mut out = String::with_capacity(2048);
-    out.push_str("\x1B[H");
-
-    let freeze_indicator = if frozen { "  \x1B[7m FROZEN \x1B[0m" } else { "" };
-    out.push_str(&format!(
-        "  headtrack-rs pose tester{}\x1B[K\n",
-        freeze_indicator
-    ));
-    out.push_str("  keys:  r=recenter  c=clear  f=freeze  g=guided test  q=quit\x1B[K\n");
-    out.push_str("  \x1B[K\n");
-
-    // Spotlight
+fn push_spotlight(out: &mut String, stats: &Stats) {
     if let Some(p) = stats.pose {
         let vals = pose_vals(&p);
         let dom = dominant_idx(&vals);
@@ -252,13 +240,12 @@ fn render_live(stats: &Stats, connected: bool, frozen: bool) {
     } else {
         out.push_str("  DOMINANT: waiting for data…\x1B[K\n");
     }
-    out.push_str("  \x1B[K\n");
+}
 
-    // Table header
+fn push_axis_table(out: &mut String, stats: &Stats) {
     out.push_str(&format!(
         "  {:<6}  {:>8}  {:<width$}  {:>6} {:>6}   hint\x1B[K\n",
-        "axis", "value", "  -max←0→+max  ",
-        "min", "max",
+        "axis", "value", "  -max←0→+max  ", "min", "max",
         width = BAR_HALF * 2 + 3,
     ));
     out.push_str("  ──────────────────────────────────────────────────────────────────\x1B[K\n");
@@ -279,6 +266,20 @@ fn render_live(stats: &Stats, connected: bool, frozen: bool) {
     } else {
         for _ in 0..6 { out.push_str("  ---\x1B[K\n"); }
     }
+}
+
+fn render_live(stats: &Stats, connected: bool, frozen: bool) {
+    let mut out = String::with_capacity(2048);
+    out.push_str("\x1B[H");
+
+    let freeze_indicator = if frozen { "  \x1B[7m FROZEN \x1B[0m" } else { "" };
+    out.push_str(&format!("  headtrack-rs pose tester{}\x1B[K\n", freeze_indicator));
+    out.push_str("  keys:  r=recenter  c=clear  f=freeze  g=guided test  q=quit\x1B[K\n");
+    out.push_str("  \x1B[K\n");
+
+    push_spotlight(&mut out, stats);
+    out.push_str("  \x1B[K\n");
+    push_axis_table(&mut out, stats);
 
     out.push_str("  \x1B[K\n");
     let status = if connected { "connected" } else { "DISCONNECTED — retrying…" };
@@ -479,6 +480,53 @@ async fn run_dump(path: &str) -> Result<()> {
     Ok(())
 }
 
+// ── Key handler ──────────────────────────────────────────────────────────────
+
+/// Process a single key press. Returns `true` if the caller should break the main loop.
+fn handle_key(
+    key:    KeyCode,
+    guide:  &mut Option<(GuideState, Vec<GuideResult>)>,
+    stats:  &mut Stats,
+    frozen: &mut bool,
+) -> bool {
+    match key {
+        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+            if guide.is_some() {
+                *guide = None;
+            } else {
+                return true;
+            }
+        }
+        KeyCode::Char('r') | KeyCode::Char('R') if guide.is_none() => {
+            let _ = headtrack_ipc::send_cmd("recenter\n");
+        }
+        KeyCode::Char('c') | KeyCode::Char('C') if guide.is_none() => {
+            stats.clear_minmax();
+        }
+        KeyCode::Char('f') | KeyCode::Char('F') if guide.is_none() => {
+            *frozen = !*frozen;
+        }
+        KeyCode::Char('g') | KeyCode::Char('G') if guide.is_none() => {
+            let _ = headtrack_ipc::send_cmd("recenter\n");
+            *guide = Some((GuideState::new(), Vec::new()));
+        }
+        KeyCode::Char(' ') => {
+            if let Some((ref mut gs, _)) = guide {
+                match gs {
+                    GuideState::Waiting(_) => {
+                        stats.clear_minmax();
+                        gs.start_recording();
+                    }
+                    GuideState::Done => { *guide = None; }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    false
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -552,50 +600,7 @@ async fn main() -> Result<()> {
             }
 
             Some(key) = key_rx.recv() => {
-                match key {
-                    KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
-                        if let Some((GuideState::Done, _)) = &guide {
-                            guide = None;
-                        } else if guide.is_some() {
-                            guide = None;
-                        } else {
-                            break;
-                        }
-                    }
-                    KeyCode::Char('r') | KeyCode::Char('R') => {
-                        if guide.is_none() {
-                            let _ = headtrack_ipc::send_cmd("recenter\n");
-                        }
-                    }
-                    KeyCode::Char('c') | KeyCode::Char('C') => {
-                        if guide.is_none() { stats.clear_minmax(); }
-                    }
-                    KeyCode::Char('f') | KeyCode::Char('F') => {
-                        if guide.is_none() { frozen = !frozen; }
-                    }
-                    KeyCode::Char('g') | KeyCode::Char('G') => {
-                        if guide.is_none() {
-                            // Recenter before guided test
-                            let _ = headtrack_ipc::send_cmd("recenter\n");
-                            guide = Some((GuideState::new(), Vec::new()));
-                        }
-                    }
-                    KeyCode::Char(' ') => {
-                        if let Some((ref mut gs, _)) = guide {
-                            match gs {
-                                GuideState::Waiting(_) => {
-                                    stats.clear_minmax();
-                                    gs.start_recording();
-                                }
-                                GuideState::Done => {
-                                    guide = None;
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    _ => {}
-                }
+                if handle_key(key, &mut guide, &mut stats, &mut frozen) { break; }
             }
         }
     }

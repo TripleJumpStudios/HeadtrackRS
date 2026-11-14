@@ -1,0 +1,21 @@
+fov_diag_deg = 84.0
+camera_resolution = [
+    1280,
+    720,
+]
+fov_presets = []
+minimize_to_tray = true
+diag_directory = "/home/pilot"
+msfs_camera_smoothing = 15.0
+sc_output_smoothing = 15.0
+show_advanced = false
+controller_bindings = []
+
+[head_source]
+kind = "webcam"
+index = 2
+name = "Elgato Facecam MK.2"
+
+[last_webcam]
+index = 2
+name = "Elgato Facecam MK.2"

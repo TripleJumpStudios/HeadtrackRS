@@ -1,3 +1,8 @@
+/// Axis names in canonical order, matching the field order of [`Pose`] and
+/// every `[f32; 6]` array in the config and pipeline. Single source of truth —
+/// import this rather than redeclaring the literal.
+pub const AXIS_NAMES: [&str; 6] = ["yaw", "pitch", "roll", "x", "y", "z"];
+
 use serde::{Deserialize, Serialize};
 
 /// 6-DOF head pose — the universal currency of the entire system.
@@ -17,7 +22,8 @@ use serde::{Deserialize, Serialize};
 /// | `z`     | forward (to screen)  | mm      |
 ///
 /// `timestamp_us` is a monotonic microsecond counter from the input source.
-/// It is used by the prediction stage; do not normalise it across sources.
+/// The engine derives each pipeline step's `dt` from consecutive values, so it
+/// must come from the source's own clock; do not normalise it across sources.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Pose {
     pub yaw: f32,
