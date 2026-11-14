@@ -7,7 +7,7 @@ This project is pre-1.0: minor versions may carry breaking changes.
 
 ---
 
-## [0.2.0] — unreleased (release candidate, 2026-10-18)
+## [0.2.0] — 2026-11-14
 
 The first release since v0.1.1 (2026-04-08), which was a pure refactor with no user-facing
 changes. Six months of work sits between them.
@@ -18,8 +18,9 @@ rebuilt** around different models with a different approach to both rotation and
 and **the Tobii Eye Tracker 5 became a second head source**, read directly over USB with no
 Tobii software installed.
 
-Items marked *pending final live sitting* are implemented and pass every offline check, but have
-not yet been confirmed in a flight. `docs/FINAL_LIVE_PROCEDURE.md` is that sitting.
+Everything below passes every offline check and has been flown day to day in MSFS 2024 and
+X-Plane 12, on the webcam and on the Tobii; the Tobii unplug/replug hardware test passes. Star
+Citizen was not re-flown for this release. Known issues are listed in the README.
 
 ### ⚠️ Breaking changes
 
@@ -51,21 +52,21 @@ not yet been confirmed in a flight. `docs/FINAL_LIVE_PROCEDURE.md` is that sitti
   zero, and the GUI says "Translation not available with Tobii". A new **Tobii** tab shows the
   device state (no device, permission needed, busy, starting, streaming, no face, lost), switches
   the head source, and recenters. Gaze is drawn in that tab only and is never sent to a sim.
-  *The device states with the real tracker, a source switch mid-flight, and unplug/replug are
-  pending final live sitting.*
+  *Switching source mid-flight can freeze tracking; pause, switch, then resume (README Known
+  Issues).*
 - **One-click USB access for the Tobii.** When Linux refuses to open the tracker, the Tobii tab's
   **Set up USB access** button installs one udev rule (`70-headtrackrs-tobii.rules`, `uaccess`
   for the logged-in user only) through `pkexec`. It asks for your password once, and only when
-  you click. *Pending final live sitting.*
+  you click.
 - **Each head source keeps its own tuning.** The webcam uses `active.toml` and the Tobii uses
   `active-tobii.toml`, which starts from a rotation-only **Tobii Default**. Switching source loads
   that source's profile, and Reset restores that source's built-in values.
 - **Recenter takes a 2.5 s stillness-gated median** instead of a single frame, so a press made
   mid-excursion no longer bakes the error in. Offline over 21 presses: presses baking in more
-  than 50 mm of error fell from 29 % to 10 %. *Pending final live sitting.*
+  than 50 mm of error fell from 29 % to 10 %.
 - **Distance normalisation.** The translation deadzones scale with your measured seating distance
   (lateral ∝ d, depth ∝ d²), referenced to 785 mm. This buys consistency across seats, not
-  accuracy. *Pending final live sitting.*
+  accuracy.
 - **MSFS 2024 full 6DOF via the SU5 Camera API.** The adapter moved off the legacy
   `CameraSetRelative6DOF` path onto `CameraSet` in the `EYEPOINT` referential, which is
   Get/Set-symmetric and therefore able to carry absolute position. Translation now works
