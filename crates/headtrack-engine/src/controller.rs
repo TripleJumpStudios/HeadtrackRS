@@ -56,7 +56,10 @@ fn is_controller(dev: &Device) -> bool {
 }
 
 fn device_name(dev: &Device) -> String {
-    dev.name().unwrap_or("unknown controller").trim().to_string()
+    dev.name()
+        .unwrap_or("unknown controller")
+        .trim()
+        .to_string()
 }
 
 /// Human label for a button code ("BTN_TRIGGER", "BTN_TRIGGER_HAPPY5", …).
@@ -65,7 +68,7 @@ fn button_label(code: u16) -> String {
 }
 
 struct Capture {
-    action:  String,
+    action: String,
     started: Instant,
     /// `(device name, code)` pressed at capture start — never accepted.
     initial: HashSet<(String, u16)>,
@@ -77,7 +80,10 @@ fn publish(state: &EngineState, bindings: &[ControllerBinding]) {
     let list: Vec<(String, String, Option<String>)> = action_defs()
         .into_iter()
         .map(|(id, desc)| {
-            let label = bindings.iter().find(|b| b.action == id).map(|b| b.label.clone());
+            let label = bindings
+                .iter()
+                .find(|b| b.action == id)
+                .map(|b| b.label.clone());
             (id.to_string(), desc.to_string(), label)
         })
         .collect();
@@ -129,7 +135,11 @@ fn rescan(devices: &mut Vec<(PathBuf, Device)>) -> bool {
         if dev.set_nonblocking(true).is_err() {
             continue;
         }
-        info!("controller bindings: found '{}' ({})", device_name(&dev), path.display());
+        info!(
+            "controller bindings: found '{}' ({})",
+            device_name(&dev),
+            path.display()
+        );
         devices.push((path, dev));
         changed = true;
     }
@@ -196,7 +206,10 @@ fn run(
             }
         }
 
-        if capture.as_ref().is_some_and(|c| c.started.elapsed() > CAPTURE_TIMEOUT) {
+        if capture
+            .as_ref()
+            .is_some_and(|c| c.started.elapsed() > CAPTURE_TIMEOUT)
+        {
             capture = None;
             publish_capture(&state, None);
             info!("controller bindings: capture timed out");

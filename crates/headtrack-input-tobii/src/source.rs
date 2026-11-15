@@ -230,7 +230,11 @@ pub(crate) fn map_status(dev: &Snapshot, tracker: &mut HeadTracker, now_us: u64)
     let streaming = matches!(state, TobiiState::Streaming | TobiiState::NoFace);
     TobiiStatus {
         state,
-        fps: if streaming { tracker.pose_rate(now_us) } else { 0.0 },
+        fps: if streaming {
+            tracker.pose_rate(now_us)
+        } else {
+            0.0
+        },
         last_sample_age_ms: tracker
             .latest()
             .and_then(|p| now_us.checked_sub(p.stamp.received_us))
@@ -246,7 +250,11 @@ pub(crate) fn map_status(dev: &Snapshot, tracker: &mut HeadTracker, now_us: u64)
             }),
         message,
         // Only while frames are arriving: before that the GUI shows "Starting".
-        neutral_progress: if streaming { tracker.neutral_progress() } else { None },
+        neutral_progress: if streaming {
+            tracker.neutral_progress()
+        } else {
+            None
+        },
     }
 }
 
@@ -459,7 +467,10 @@ mod tests {
         let mut g = PoseGate::default();
         let s = sample(1, 5, 1_000, 3.0);
         let p = g.take(s, 1_010).expect("fresh sample is emitted");
-        assert_eq!((p.yaw, p.x, p.y, p.z, p.timestamp_us), (3.0, 0.0, 0.0, 0.0, 1_000));
+        assert_eq!(
+            (p.yaw, p.x, p.y, p.z, p.timestamp_us),
+            (3.0, 0.0, 0.0, 0.0, 1_000)
+        );
         // The same sample, polled again and again while still fresh: never re-emitted.
         for now in [1_020, 50_000, 200_000] {
             assert!(g.take(s, now).is_none());
@@ -499,7 +510,11 @@ mod tests {
         let t = feed(&mut tr, 1, 1, 100_000, 21, [-25.0, 3.0, 1.0]);
         assert!(!tr.collecting(), "neutral should be taken after 2 s still");
         let p = tr.latest().expect("pose after neutral");
-        assert!(p.rotation.iter().all(|v| v.abs() < 1e-3), "{:?}", p.rotation);
+        assert!(
+            p.rotation.iter().all(|v| v.abs() < 1e-3),
+            "{:?}",
+            p.rotation
+        );
         assert_eq!(p.stamp.received_us, t);
     }
 
@@ -518,7 +533,10 @@ mod tests {
         assert!(tr.latest().is_some());
         tr.recenter(t);
         assert!(tr.collecting());
-        assert!(tr.latest().is_none(), "old-neutral rotation must not survive Recenter");
+        assert!(
+            tr.latest().is_none(),
+            "old-neutral rotation must not survive Recenter"
+        );
         // A frame received before the press is not a neutral candidate.
         tr.observe(stamp(1, 100, t - 1), Some([10.0, 0.0, 0.0]), "ok", t);
         assert!(tr.collecting());
@@ -545,9 +563,17 @@ mod tests {
         let mut tr = HeadTracker::new();
         let t = feed(&mut tr, 1, 1, 100_000, 21, [0.0; 3]);
         // Image +Y is head-right (measured sign; neutral.rs): yaw +20.
-        tr.observe(stamp(1, 50, t + 100_000), Some([0.0, 20.0, 0.0]), "ok", t + 100_000);
+        tr.observe(
+            stamp(1, 50, t + 100_000),
+            Some([0.0, 20.0, 0.0]),
+            "ok",
+            t + 100_000,
+        );
         let r = tr.latest().unwrap().rotation;
-        assert!((r[0] - 20.0).abs() < 1e-3 && r[1].abs() < 1e-3 && r[2].abs() < 1e-3, "{r:?}");
+        assert!(
+            (r[0] - 20.0).abs() < 1e-3 && r[1].abs() < 1e-3 && r[2].abs() < 1e-3,
+            "{r:?}"
+        );
     }
 
     #[test]
@@ -581,8 +607,16 @@ mod tests {
             (Opening, None, TobiiState::Opening),
             (Opening, Some(K::NoDevice), TobiiState::NoDevice),
             (Recovering, Some(K::NoDevice), TobiiState::NoDevice),
-            (Recovering, Some(K::PermissionDenied), TobiiState::PermissionDenied),
-            (Opening, Some(K::PermissionDenied), TobiiState::PermissionDenied),
+            (
+                Recovering,
+                Some(K::PermissionDenied),
+                TobiiState::PermissionDenied,
+            ),
+            (
+                Opening,
+                Some(K::PermissionDenied),
+                TobiiState::PermissionDenied,
+            ),
             (Recovering, Some(K::Busy), TobiiState::Busy),
             (Recovering, Some(K::Disconnected), TobiiState::Lost),
             (Recovering, Some(K::Other), TobiiState::Lost),
@@ -598,7 +632,10 @@ mod tests {
             assert_eq!(s.fps, 0.0);
             assert_eq!(s.serial.as_deref(), Some("IS5FF-100000000001"));
             if want != TobiiState::Opening || err.is_some() {
-                assert_eq!(s.message, "usb says", "USB text reaches the tab for {dev:?}");
+                assert_eq!(
+                    s.message, "usb says",
+                    "USB text reaches the tab for {dev:?}"
+                );
             }
         }
     }
@@ -611,7 +648,12 @@ mod tests {
         assert_eq!(s.state, TobiiState::Streaming);
         assert_eq!(s.last_sample_age_ms, Some(30));
         assert_eq!(s.message, "Tracking head rotation");
-        tr.observe(stamp(1, 99, t + 100_000), None, "No face detected", t + 100_000);
+        tr.observe(
+            stamp(1, 99, t + 100_000),
+            None,
+            "No face detected",
+            t + 100_000,
+        );
         let s = map_status(&snap(live::State::Streaming, None), &mut tr, t + 110_000);
         assert_eq!(s.state, TobiiState::NoFace);
         assert_eq!(s.message, "No face detected");
@@ -641,12 +683,27 @@ mod tests {
         assert_eq!(s.neutral_progress, None, "neutral taken: tracking");
         tr.recenter(t + 20_000);
         let s = map_status(&snap(live::State::Streaming, None), &mut tr, t + 30_000);
-        assert_eq!(s.neutral_progress, Some(0.0), "recenter restarts the countdown");
-        tr.observe(stamp(1, 99, t + 100_000), None, "No face detected", t + 100_000);
+        assert_eq!(
+            s.neutral_progress,
+            Some(0.0),
+            "recenter restarts the countdown"
+        );
+        tr.observe(
+            stamp(1, 99, t + 100_000),
+            None,
+            "No face detected",
+            t + 100_000,
+        );
         let s = map_status(&snap(live::State::Streaming, None), &mut tr, t + 110_000);
-        assert_eq!((s.state, s.neutral_progress), (TobiiState::NoFace, Some(0.0)));
+        assert_eq!(
+            (s.state, s.neutral_progress),
+            (TobiiState::NoFace, Some(0.0))
+        );
         let s = map_status(&snap(live::State::Opening, None), &mut tr, t + 120_000);
-        assert_eq!(s.neutral_progress, None, "no countdown unless frames arrive");
+        assert_eq!(
+            s.neutral_progress, None,
+            "no countdown unless frames arrive"
+        );
     }
 
     #[test]
@@ -661,9 +718,13 @@ mod tests {
                 eyes_present: [Some(true), Some(true)],
             }),
         });
-        let g = map_status(&dev, &mut tr, 2_000).gaze.expect("fresh valid gaze");
+        let g = map_status(&dev, &mut tr, 2_000)
+            .gaze
+            .expect("fresh valid gaze");
         assert_eq!((g.x, g.y), (0.25, 0.75));
-        assert!(map_status(&dev, &mut tr, 1_000 + POSE_TTL_US + 1).gaze.is_none());
+        assert!(map_status(&dev, &mut tr, 1_000 + POSE_TTL_US + 1)
+            .gaze
+            .is_none());
         dev.gaze.as_mut().unwrap().validity = Validity::Invalid;
         assert!(map_status(&dev, &mut tr, 2_000).gaze.is_none());
     }
@@ -673,8 +734,8 @@ mod tests {
     #[test]
     fn synthetic_frames_without_a_face_report_no_face() {
         use headtrack_tobii_device::image::GrayImage;
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../assets/models/tobii");
+        let root =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/models/tobii");
         let est = Estimator::load(&root).expect("shipped models load");
         let flat = GrayImage::new(280, 280, 280, &[96u8; 280 * 280]).unwrap();
         // Deterministic gradient + LCG noise.

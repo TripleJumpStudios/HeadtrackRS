@@ -26,7 +26,13 @@ fn v011_minimal_loads_as_webcam_zero_with_defaults() {
     let cfg = parse(V011_MINIMAL);
     let def = CameraConfig::default();
     assert_eq!(cfg.fov_diag_deg, 60.0);
-    assert_eq!(cfg.head_source, HeadSource::Webcam { index: 0, name: None });
+    assert_eq!(
+        cfg.head_source,
+        HeadSource::Webcam {
+            index: 0,
+            name: None
+        }
+    );
     assert_eq!(cfg.last_webcam, None);
     assert_eq!(cfg.source_kind(), SourceKind::Webcam);
     assert_eq!(cfg.webcam_selection(), WebcamSelection::default());
@@ -48,7 +54,10 @@ fn a_fresh_install_gets_720p_and_saved_choices_stay() {
     assert_eq!(CameraConfig::default().camera_resolution, (1280, 720));
     assert_eq!(CameraConfig::default_resolution(), (1280, 720));
     for saved in [(640, 480), (320, 240), (1280, 720)] {
-        let cfg = CameraConfig { camera_resolution: saved, ..CameraConfig::default() };
+        let cfg = CameraConfig {
+            camera_resolution: saved,
+            ..CameraConfig::default()
+        };
         let back = parse(&toml::to_string_pretty(&cfg).expect("serialize"));
         assert_eq!(back.camera_resolution, saved);
     }
@@ -105,7 +114,10 @@ fn p05_webcam_is_byte_identical_to_its_serialization() {
     let back = parse(P05_WEBCAM);
     assert_eq!(
         back.head_source,
-        HeadSource::Webcam { index: 2, name: Some("Elgato Facecam MK.2".into()) }
+        HeadSource::Webcam {
+            index: 2,
+            name: Some("Elgato Facecam MK.2".into())
+        }
     );
     assert_eq!(back.webcam_selection().index, 2);
 }
@@ -114,7 +126,12 @@ fn p05_webcam_is_byte_identical_to_its_serialization() {
 fn p05_tobii_remembers_the_webcam() {
     let cfg = parse(P05_TOBII);
     assert_eq!(cfg.source_kind(), SourceKind::Tobii);
-    assert_eq!(cfg.head_source, HeadSource::Tobii { serial: Some("IS5FF-100203345678".into()) });
+    assert_eq!(
+        cfg.head_source,
+        HeadSource::Tobii {
+            serial: Some("IS5FF-100203345678".into())
+        }
+    );
     let w = cfg.webcam_selection();
     assert_eq!(w.index, 2);
     assert_eq!(w.name.as_deref(), Some("Elgato Facecam MK.2"));
@@ -132,7 +149,11 @@ fn unknown_source_kind_falls_back_and_keeps_bindings() {
     let cfg = parse(FUTURE_SOURCE);
     assert_eq!(cfg.head_source, HeadSource::default());
     assert_eq!(cfg.fov_diag_deg, 84.0);
-    assert_eq!(cfg.controller_bindings.len(), 1, "bindings must survive an unknown source");
+    assert_eq!(
+        cfg.controller_bindings.len(),
+        1,
+        "bindings must survive an unknown source"
+    );
 }
 
 #[test]
@@ -154,7 +175,10 @@ fn webcam_tobii_webcam_round_trip_keeps_the_webcam() {
     cfg.select_webcam(w.index, w.name);
     assert_eq!(
         cfg.head_source,
-        HeadSource::Webcam { index: 3, name: Some("Logitech C920".into()) }
+        HeadSource::Webcam {
+            index: 3,
+            name: Some("Logitech C920".into())
+        }
     );
 }
 
@@ -169,15 +193,24 @@ fn tobii_to_tobii_does_not_clobber_the_remembered_webcam() {
 
 #[test]
 fn per_source_policy() {
-    assert_eq!(SourceKind::Webcam.distance_scale_policy(), DistanceScalePolicy::FromStandoff);
-    assert_eq!(SourceKind::Tobii.distance_scale_policy(), DistanceScalePolicy::None);
+    assert_eq!(
+        SourceKind::Webcam.distance_scale_policy(),
+        DistanceScalePolicy::FromStandoff
+    );
+    assert_eq!(
+        SourceKind::Tobii.distance_scale_policy(),
+        DistanceScalePolicy::None
+    );
     assert!(SourceKind::Webcam.observes_standoff());
     assert!(!SourceKind::Tobii.observes_standoff());
     assert!(SourceKind::Webcam.provides_translation());
     assert!(!SourceKind::Tobii.provides_translation());
 
     // Tobii is never scaled, whatever standoff is fed in.
-    assert_eq!(DistanceScalePolicy::None.scale_for(1000.0), DistanceScale::NONE);
+    assert_eq!(
+        DistanceScalePolicy::None.scale_for(1000.0),
+        DistanceScale::NONE
+    );
     assert_eq!(
         DistanceScalePolicy::FromStandoff.scale_for(1000.0),
         DistanceScale::from_standoff_mm(1000.0)
@@ -188,7 +221,11 @@ fn per_source_policy() {
 fn per_source_active_profile_paths() {
     let webcam = ProfileConfig::active_config_path_for(SourceKind::Webcam);
     let tobii = ProfileConfig::active_config_path_for(SourceKind::Tobii);
-    assert_eq!(webcam, ProfileConfig::active_config_path(), "existing callers must not move");
+    assert_eq!(
+        webcam,
+        ProfileConfig::active_config_path(),
+        "existing callers must not move"
+    );
     assert!(webcam.ends_with("headtrack-rs/active.toml"));
     assert!(tobii.ends_with("headtrack-rs/active-tobii.toml"));
 }
@@ -219,8 +256,14 @@ mod per_source_profile {
         let d = scratch("absent");
         let w = ProfileConfig::load_active_in(&d, SourceKind::Webcam).unwrap();
         let t = ProfileConfig::load_active_in(&d, SourceKind::Tobii).unwrap();
-        assert_eq!(w.to_toml().unwrap(), ProfileConfig::default().to_toml().unwrap());
-        assert_eq!(t.to_toml().unwrap(), ProfileConfig::tobii_default().to_toml().unwrap());
+        assert_eq!(
+            w.to_toml().unwrap(),
+            ProfileConfig::default().to_toml().unwrap()
+        );
+        assert_eq!(
+            t.to_toml().unwrap(),
+            ProfileConfig::tobii_default().to_toml().unwrap()
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -229,7 +272,10 @@ mod per_source_profile {
     #[test]
     fn the_two_active_profiles_are_independent_and_round_trip() {
         let d = scratch("roundtrip");
-        let mut webcam = ProfileConfig { name: "My webcam tuning".into(), ..Default::default() };
+        let mut webcam = ProfileConfig {
+            name: "My webcam tuning".into(),
+            ..Default::default()
+        };
         webcam.deadzone[0] = 0.33;
         let mut tobii = ProfileConfig::tobii_default();
         tobii.name = "My Tobii tuning".into();
@@ -238,11 +284,18 @@ mod per_source_profile {
         let tpath = d.join("active-tobii.toml");
         webcam.save(&wpath).unwrap();
         tobii.save(&tpath).unwrap();
-        let (wbytes, tbytes) = (std::fs::read(&wpath).unwrap(), std::fs::read(&tpath).unwrap());
+        let (wbytes, tbytes) = (
+            std::fs::read(&wpath).unwrap(),
+            std::fs::read(&tpath).unwrap(),
+        );
 
         for kind in [SourceKind::Webcam, SourceKind::Tobii, SourceKind::Webcam] {
             let got = ProfileConfig::load_active_in(&d, kind).unwrap();
-            let want = if kind == SourceKind::Webcam { &webcam } else { &tobii };
+            let want = if kind == SourceKind::Webcam {
+                &webcam
+            } else {
+                &tobii
+            };
             assert_eq!(got.to_toml().unwrap(), want.to_toml().unwrap(), "{kind:?}");
         }
         assert_eq!(std::fs::read(&wpath).unwrap(), wbytes);

@@ -120,8 +120,8 @@ mod log_filter_tests {
     /// A directive that merely contains the letters "ort" is not a claim on it.
     #[test]
     fn a_lookalike_target_does_not_count_as_asking_for_ort() {
-        let rendered = build_log_filter(Some("headtrack_output_simconnect=debug"), "warn")
-            .to_string();
+        let rendered =
+            build_log_filter(Some("headtrack_output_simconnect=debug"), "warn").to_string();
         assert!(rendered.contains("ort=warn"), "got {rendered}");
     }
 }
@@ -139,24 +139,44 @@ pub type EnginePreview = Arc<Mutex<(u64, Option<Arc<Vec<u8>>>)>>;
 #[derive(Debug)]
 pub enum EngineCmd {
     Recenter,
-    SetParam { stage: String, param: String, value: f32 },
+    SetParam {
+        stage: String,
+        param: String,
+        value: f32,
+    },
     /// Make webcam `index` the head source (from the Tobii too) and persist it.
-    SwitchCamera { index: u32 },
+    SwitchCamera {
+        index: u32,
+    },
     /// Change the head source: the old source is closed and released first,
     /// the pipeline and every per-source estimate is reset, the new source's
     /// active profile is loaded, and the choice is persisted in `camera.toml`.
-    SwitchSource { source: HeadSource },
+    SwitchSource {
+        source: HeadSource,
+    },
     /// Switch to a source *kind*, letting the engine pick the device: the
     /// remembered webcam (`camera.toml` `last_webcam`), or the Tobii (the saved
     /// serial if the Tobii was the last source, else the single connected one).
-    SwitchSourceKind { kind: SourceKind },
-    SetFov { degrees: f32 },
+    SwitchSourceKind {
+        kind: SourceKind,
+    },
+    SetFov {
+        degrees: f32,
+    },
     /// Change capture resolution and restart the camera.  Resolution is
     /// persisted to `camera.toml` so it survives restarts.
-    SetResolution { width: u32, height: u32 },
-    Overlay { enabled: bool },
+    SetResolution {
+        width: u32,
+        height: u32,
+    },
+    Overlay {
+        enabled: bool,
+    },
     /// Begin writing a diagnostic CSV to `path`. Replaces any active recording.
-    StartRecording { path: PathBuf, size_limit_mb: u32 },
+    StartRecording {
+        path: PathBuf,
+        size_limit_mb: u32,
+    },
     /// Stop the current recording and flush the file.
     StopRecording,
     /// Enable or disable SimConnect CameraSet streaming.
@@ -176,7 +196,10 @@ pub enum EngineCmd {
     /// Nudge one MSFS seat-offset axis (0=x, 1=y, 2=z) by `delta_m` metres.
     /// The adapter clamps and persists per aircraft; callers stay stateless.
     #[cfg(feature = "output-simconnect")]
-    MsfsSeatNudge { axis: u8, delta_m: f32 },
+    MsfsSeatNudge {
+        axis: u8,
+        delta_m: f32,
+    },
     /// Zero the current aircraft's MSFS seat offset (persisted).
     #[cfg(feature = "output-simconnect")]
     MsfsSeatReset,
@@ -185,11 +208,15 @@ pub enum EngineCmd {
     RebindGlobalShortcuts,
     /// Start capturing a controller button for `action` (next fresh press on
     /// any joystick-class device binds; parked switches are never accepted).
-    ControllerBindStart { action: String },
+    ControllerBindStart {
+        action: String,
+    },
     /// Cancel an in-progress controller capture.
     ControllerBindCancel,
     /// Remove the controller binding for `action`.
-    ControllerBindClear { action: String },
+    ControllerBindClear {
+        action: String,
+    },
 }
 
 // ── Recording status ─────────────────────────────────────────────────────────
@@ -197,12 +224,12 @@ pub enum EngineCmd {
 /// Status of the in-GUI diagnostic recorder, stored as a `u8` in `EngineState`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RecordingStatus {
-    Idle         = 0,
-    Active       = 1,
+    Idle = 0,
+    Active = 1,
     LimitReached = 2,
     /// `StartRecording` failed (bad path, permissions, disk full, etc.).
     /// The human-readable cause is in `EngineState::recording_error`.
-    Error        = 3,
+    Error = 3,
 }
 
 impl RecordingStatus {
@@ -296,8 +323,8 @@ impl EngineCmdSender {
 /// Holds the tokio runtime and all running tasks. Dropping this value stops
 /// the engine cleanly (all tasks are cancelled, the tokio runtime is shut down).
 pub struct Engine {
-    state:   Arc<EngineState>,
-    cmd_tx:  mpsc::Sender<EngineCmd>,
+    state: Arc<EngineState>,
+    cmd_tx: mpsc::Sender<EngineCmd>,
     runtime: Option<tokio::runtime::Runtime>,
 }
 
@@ -335,25 +362,25 @@ impl Engine {
             .build()?;
 
         let state = Arc::new(EngineState {
-            latest_pose:      Mutex::new(Pose::zero(0)),
-            fps:              Mutex::new(0.0),
+            latest_pose: Mutex::new(Pose::zero(0)),
+            fps: Mutex::new(0.0),
             camera_connected: AtomicBool::new(false),
-            camera_index:     AtomicU32::new(0),
-            head_source:      Mutex::new(HeadSource::default()),
-            tobii:            Arc::new(Mutex::new(TobiiStatus::default())),
-            current_fov:      AtomicU32::new(CameraConfig::load().fov_diag_deg.to_bits()),
-            preview:          Arc::new(Mutex::new((0, None))),
-            overlay_enabled:  Arc::new(AtomicBool::new(false)),
+            camera_index: AtomicU32::new(0),
+            head_source: Mutex::new(HeadSource::default()),
+            tobii: Arc::new(Mutex::new(TobiiStatus::default())),
+            current_fov: AtomicU32::new(CameraConfig::load().fov_diag_deg.to_bits()),
+            preview: Arc::new(Mutex::new((0, None))),
+            overlay_enabled: Arc::new(AtomicBool::new(false)),
             recording_status: AtomicU8::new(0),
-            recording_bytes:  AtomicU64::new(0),
-            recording_error:  Mutex::new(None),
-            msfs_seat:        std::array::from_fn(|_| AtomicU32::new(0)),
-            msfs_title:       Mutex::new(String::new()),
-            msfs_enabled:     AtomicBool::new(true),
-            msfs_connected:   AtomicBool::new(false),
+            recording_bytes: AtomicU64::new(0),
+            recording_error: Mutex::new(None),
+            msfs_seat: std::array::from_fn(|_| AtomicU32::new(0)),
+            msfs_title: Mutex::new(String::new()),
+            msfs_enabled: AtomicBool::new(true),
+            msfs_connected: AtomicBool::new(false),
             global_shortcuts: Mutex::new(None),
             controller_bindings: Mutex::new(Vec::new()),
-            controller_capture:  Mutex::new(None),
+            controller_capture: Mutex::new(None),
         });
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<EngineCmd>(64);
@@ -362,7 +389,11 @@ impl Engine {
         // spawns long-lived tasks) then return so the caller can proceed.
         rt.block_on(engine_init(Arc::clone(&state), cmd_tx.clone(), cmd_rx))?;
 
-        Ok(Engine { state, cmd_tx, runtime: Some(rt) })
+        Ok(Engine {
+            state,
+            cmd_tx,
+            runtime: Some(rt),
+        })
     }
 
     pub fn state(&self) -> Arc<EngineState> {
@@ -381,8 +412,8 @@ impl Engine {
 /// Returns after all tasks are spawned — the tasks themselves run indefinitely
 /// on the engine's tokio runtime.
 async fn engine_init(
-    state:  Arc<EngineState>,
-    cmd_tx: mpsc::Sender<EngineCmd>,  // for the socket cmd_listener to forward into
+    state: Arc<EngineState>,
+    cmd_tx: mpsc::Sender<EngineCmd>, // for the socket cmd_listener to forward into
     cmd_rx: mpsc::Receiver<EngineCmd>,
 ) -> Result<()> {
     // 1. Bind the IPC pose socket. Fail fast if this doesn't work.
@@ -412,12 +443,18 @@ async fn engine_init(
 
     // 3. Auto-detect FOV for a known webcam model.
     if let HeadSource::Webcam { index, name } = &head {
-        let sel = headtrack_core::config::WebcamSelection { index: *index, name: name.clone() };
+        let sel = headtrack_core::config::WebcamSelection {
+            index: *index,
+            name: name.clone(),
+        };
         let index = source::pick_webcam_index(&sel, &source::v4l2_devices());
         if let Some(name) = device_name(index) {
             if let Some(fov) = lookup_fov(&name) {
                 if (fov - camera_cfg.fov_diag_deg).abs() > 0.1 {
-                    info!("auto-detected FOV {fov}° for '{name}' (was {}°)", camera_cfg.fov_diag_deg);
+                    info!(
+                        "auto-detected FOV {fov}° for '{name}' (was {}°)",
+                        camera_cfg.fov_diag_deg
+                    );
                     camera_cfg.fov_diag_deg = fov;
                     let _ = camera_cfg.save();
                 }
@@ -455,7 +492,11 @@ async fn engine_init(
     // Degrades to a single info log when the portal is absent. `rebind_tx`
     // lets the GUI re-open the desktop's binding dialog later.
     let (rebind_tx, rebind_rx) = tokio::sync::mpsc::unbounded_channel();
-    tokio::spawn(global_shortcuts::run(cmd_tx.clone(), Arc::clone(&state), rebind_rx));
+    tokio::spawn(global_shortcuts::run(
+        cmd_tx.clone(),
+        Arc::clone(&state),
+        rebind_rx,
+    ));
 
     // 5c. Controller/HOTAS button bindings — the in-app, focus-independent
     // hotkey tier (evdev listener thread; bind UI in the Keybinds tab).
@@ -473,7 +514,10 @@ async fn engine_init(
             );
             Some(w)
         }
-        Err(e) => { warn!("Wine SHM unavailable: {e:#}"); None }
+        Err(e) => {
+            warn!("Wine SHM unavailable: {e:#}");
+            None
+        }
     };
     #[cfg(feature = "output-simconnect")]
     let simconnect = match SimConnectOutput::open(5557) {
@@ -482,7 +526,10 @@ async fn engine_init(
             info!("SimConnect output ready (127.0.0.1:5557)");
             Some(s)
         }
-        Err(e) => { warn!("SimConnect output unavailable: {e:#}"); None }
+        Err(e) => {
+            warn!("SimConnect output unavailable: {e:#}");
+            None
+        }
     };
     let outputs = EngineOutputs {
         #[cfg(feature = "output-wine")]
@@ -521,14 +568,7 @@ async fn engine_init(
         source_fresh: false,
     };
 
-    tokio::spawn(run_loop(
-        ctx,
-        cmd_rx,
-        pose_tx,
-        outputs,
-        rebind_tx,
-        ctrl_tx,
-    ));
+    tokio::spawn(run_loop(ctx, cmd_rx, pose_tx, outputs, rebind_tx, ctrl_tx));
 
     Ok(())
 }
@@ -536,15 +576,19 @@ async fn engine_init(
 // ── Private: diagnostic recorder ─────────────────────────────────────────────
 
 struct DiagRecorder {
-    writer:           std::io::BufWriter<std::fs::File>,
-    start:            Instant,
-    bytes_written:    u64,
+    writer: std::io::BufWriter<std::fs::File>,
+    start: Instant,
+    bytes_written: u64,
     size_limit_bytes: u64,
-    line_buf:         String,
+    line_buf: String,
 }
 
 impl DiagRecorder {
-    fn open(path: &std::path::Path, size_limit_mb: u32, pipeline: &Pipeline) -> std::io::Result<Self> {
+    fn open(
+        path: &std::path::Path,
+        size_limit_mb: u32,
+        pipeline: &Pipeline,
+    ) -> std::io::Result<Self> {
         use std::io::Write;
         // Best-effort: create the destination directory so users can point at
         // a freshly-named folder without pre-creating it. Permission/disk
@@ -588,7 +632,8 @@ impl DiagRecorder {
         use std::io::Write;
         let t = self.start.elapsed().as_secs_f64();
         self.line_buf.clear();
-        let _ = write!(self.line_buf,
+        let _ = write!(
+            self.line_buf,
             "{:.4},{:.4},{:.4},{:.4},{:.2},{:.2},{:.2},{:.1}",
             t, pose.yaw, pose.pitch, pose.roll, pose.x, pose.y, pose.z, fps
         );
@@ -648,8 +693,8 @@ fn dump_raw_enabled() -> bool {
 /// Synchronous like [`DiagRecorder`] — both run inside the loop's `block_in_place`
 /// section, so file I/O doesn't starve the tokio runtime.
 struct RawPoseRecorder {
-    writer:     std::io::BufWriter<std::fs::File>,
-    line_buf:   String,
+    writer: std::io::BufWriter<std::fs::File>,
+    line_buf: String,
     /// timestamp of the last row written — anchors event comments to the pose
     /// timeline (a marker lands between the row with this ts and the next).
     last_ts_us: u64,
@@ -675,14 +720,19 @@ impl RawPoseRecorder {
         writer.write_all(b"timestamp_us,dt_s,yaw,pitch,roll,x,y,z\n")?;
         writeln!(writer, "# detector={detector}")?;
         info!("HEADTRACK_DUMP_RAW=1 — raw pre-pipeline pose log ({detector}) -> {path}");
-        Ok(Self { writer, line_buf: String::with_capacity(96), last_ts_us: 0 })
+        Ok(Self {
+            writer,
+            line_buf: String::with_capacity(96),
+            last_ts_us: 0,
+        })
     }
 
     fn write_raw(&mut self, pose: &Pose, dt: f32) {
         use std::fmt::Write as FmtWrite;
         use std::io::Write;
         self.line_buf.clear();
-        let _ = writeln!(self.line_buf,
+        let _ = writeln!(
+            self.line_buf,
             "{},{:.6},{:.5},{:.5},{:.5},{:.5},{:.5},{:.5}",
             pose.timestamp_us, dt, pose.yaw, pose.pitch, pose.roll, pose.x, pose.y, pose.z
         );
@@ -717,7 +767,6 @@ struct EngineOutputs {
     simconnect: Option<SimConnectOutput>,
 }
 
-
 /// Everything the run loop threads through `dispatch_cmd`.
 ///
 /// `run_loop` used to take 13 positional parameters and `dispatch_cmd` 10 of
@@ -725,25 +774,25 @@ struct EngineOutputs {
 /// `&mut`, behind a `#[allow(clippy::too_many_arguments)]` that had stopped
 /// meaning anything. Grouping them makes the forwarding a single `&mut ctx`.
 struct RunLoopCtx {
-    state:            Arc<EngineState>,
-    source:           Option<Box<dyn InputSource>>,
+    state: Arc<EngineState>,
+    source: Option<Box<dyn InputSource>>,
     /// The selected head source (even when it failed to open).
-    head:             HeadSource,
-    current_fov:      f32,
-    models_dir:       PathBuf,
-    pipeline:         Pipeline,
-    recorder:         Option<DiagRecorder>,
-    raw_recorder:     Option<RawPoseRecorder>,
+    head: HeadSource,
+    current_fov: f32,
+    models_dir: PathBuf,
+    pipeline: Pipeline,
+    recorder: Option<DiagRecorder>,
+    raw_recorder: Option<RawPoseRecorder>,
     preview_shutdown: Option<Arc<AtomicBool>>,
     // Per-source estimates — all reset on a source change (`reset_source_state`).
     /// Timestamp of the previous frame, for source-clock dt.
-    last_raw_ts:        Option<u64>,
-    last_pose:          Pose,
-    standoff:           StandoffTracker,
+    last_raw_ts: Option<u64>,
+    last_pose: Pose,
+    standoff: StandoffTracker,
     frames_since_input: u32,
     /// Set by `reset_source_state`; the run loop takes it to end any stall
     /// outage (the watchdog's clock and its once-per-outage WARN).
-    source_fresh:       bool,
+    source_fresh: bool,
 }
 
 impl RunLoopCtx {
@@ -759,12 +808,12 @@ impl RunLoopCtx {
     allow(unused_variables, unused_mut)
 )]
 async fn run_loop(
-    mut ctx:      RunLoopCtx,
-    mut cmd_rx:   mpsc::Receiver<EngineCmd>,
-    pose_tx:      broadcast::Sender<Pose>,
-    mut outputs:  EngineOutputs,
-    rebind_tx:    tokio::sync::mpsc::UnboundedSender<()>,
-    ctrl_tx:      std::sync::mpsc::Sender<controller::ControllerCmd>,
+    mut ctx: RunLoopCtx,
+    mut cmd_rx: mpsc::Receiver<EngineCmd>,
+    pose_tx: broadcast::Sender<Pose>,
+    mut outputs: EngineOutputs,
+    rebind_tx: tokio::sync::mpsc::UnboundedSender<()>,
+    ctrl_tx: std::sync::mpsc::Sender<controller::ControllerCmd>,
 ) {
     let mut interval = tokio::time::interval(POLL_INTERVAL);
     let mut last_tick = Instant::now();
@@ -786,7 +835,10 @@ async fn run_loop(
             if let EngineCmd::SimConnectEnabled(enabled) = cmd {
                 if let Some(ref sc) = outputs.simconnect {
                     sc.set_enabled(enabled);
-                    info!("SimConnect streaming {}", if enabled { "enabled" } else { "disabled" });
+                    info!(
+                        "SimConnect streaming {}",
+                        if enabled { "enabled" } else { "disabled" }
+                    );
                 }
                 continue;
             }
@@ -870,8 +922,12 @@ async fn run_loop(
             for (slot, v) in ctx.state.msfs_seat.iter().zip(seat) {
                 slot.store(v.to_bits(), Ordering::Relaxed);
             }
-            ctx.state.msfs_enabled.store(sc.is_enabled(), Ordering::Relaxed);
-            ctx.state.msfs_connected.store(sc.is_connected(), Ordering::Relaxed);
+            ctx.state
+                .msfs_enabled
+                .store(sc.is_enabled(), Ordering::Relaxed);
+            ctx.state
+                .msfs_connected
+                .store(sc.is_connected(), Ordering::Relaxed);
             let title = sc.current_title();
             if title != last_msfs_title {
                 if let Ok(mut t) = ctx.state.msfs_title.lock() {
@@ -891,7 +947,9 @@ async fn run_loop(
         }
 
         let kind = ctx.kind();
-        let Some(ref mut src) = ctx.source else { continue };
+        let Some(ref mut src) = ctx.source else {
+            continue;
+        };
 
         // All synchronous work (pipeline math, mutex writes, file I/O, SHM/TCP
         // output writes) is wrapped in block_in_place so the tokio scheduler can
@@ -908,7 +966,8 @@ async fn run_loop(
                 // when it's unusable (first frame, camera switch resetting the
                 // epoch, stall > 0.5 s) — then fall back to the wall clock.
                 let wall_dt = now.duration_since(last_tick).as_secs_f32();
-                let ts_dt = ctx.last_raw_ts
+                let ts_dt = ctx
+                    .last_raw_ts
                     .and_then(|prev| raw.timestamp_us.checked_sub(prev))
                     .map(|d| d as f32 / 1_000_000.0)
                     .filter(|d| *d > 0.0 && *d < 0.5);
@@ -934,7 +993,9 @@ async fn run_loop(
                         ctx.pipeline.set_distance_scale(scale);
                         debug!(
                             "distance scale: standoff {:.0} mm -> lateral ×{:.2}, depth ×{:.2}",
-                            ctx.standoff.current_mm(), scale.lateral, scale.depth
+                            ctx.standoff.current_mm(),
+                            scale.lateral,
+                            scale.depth
                         );
                     }
                 }
@@ -963,12 +1024,16 @@ async fn run_loop(
                 // Diagnostic ctx.recorder — write pose row each frame.
                 if let Some(ref mut rec) = ctx.recorder {
                     let limit = rec.write_pose(&processed, current_fps, &ctx.pipeline);
-                    ctx.state.recording_bytes.store(rec.bytes_written, Ordering::Relaxed);
+                    ctx.state
+                        .recording_bytes
+                        .store(rec.bytes_written, Ordering::Relaxed);
                     if limit {
                         rec.write_event("RECORDING_STOPPED: size limit reached");
                         rec.flush();
                         ctx.recorder = None;
-                        ctx.state.recording_status.store(RecordingStatus::LimitReached as u8, Ordering::Relaxed);
+                        ctx.state
+                            .recording_status
+                            .store(RecordingStatus::LimitReached as u8, Ordering::Relaxed);
                     }
                 }
 
@@ -1015,7 +1080,11 @@ async fn run_loop(
                 let stall = last_pose_time.elapsed();
                 if stall > STALL_AFTER {
                     let neutral = if kind == SourceKind::Tobii {
-                        ctx.state.tobii.lock().map(|t| t.neutral_progress).unwrap_or(None)
+                        ctx.state
+                            .tobii
+                            .lock()
+                            .map(|t| t.neutral_progress)
+                            .unwrap_or(None)
                     } else {
                         None
                     };
@@ -1117,7 +1186,10 @@ impl StallWatch {
             self.last_line = Some(now);
             return StallLine::Warn;
         }
-        if self.last_line.is_some_and(|t| now.saturating_duration_since(t) < STALL_REPEAT) {
+        if self
+            .last_line
+            .is_some_and(|t| now.saturating_duration_since(t) < STALL_REPEAT)
+        {
             return StallLine::Quiet;
         }
         self.last_line = Some(now);
@@ -1151,9 +1223,16 @@ fn reset_source_state(ctx: &mut RunLoopCtx) {
 async fn switch_source(ctx: &mut RunLoopCtx, new: HeadSource, persist: bool, context: &str) {
     let old_kind = ctx.kind();
     let new_kind = new.kind();
-    info!("head source: {} → {} ({context})", old_kind.label(), new_kind.label());
+    info!(
+        "head source: {} → {} ({context})",
+        old_kind.label(),
+        new_kind.label()
+    );
     if let Some(rec) = ctx.recorder.as_mut() {
-        rec.write_event(&format!("SOURCE: switching to {} ({context})", new_kind.label()));
+        rec.write_event(&format!(
+            "SOURCE: switching to {} ({context})",
+            new_kind.label()
+        ));
     }
     if let Some(rr) = ctx.raw_recorder.as_mut() {
         rr.write_event(&format!("SOURCE: {}", new_kind.label()));
@@ -1223,11 +1302,19 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
             ctx.pipeline.reset();
             info!("pipeline reset (recenter)");
             fire_paramlog("recenter");
-            if let Some(rec) = ctx.recorder.as_mut() { rec.write_event("RECENTER"); }
-            if let Some(rr) = ctx.raw_recorder.as_mut() { rr.write_event("RECENTER"); }
+            if let Some(rec) = ctx.recorder.as_mut() {
+                rec.write_event("RECENTER");
+            }
+            if let Some(rr) = ctx.raw_recorder.as_mut() {
+                rr.write_event("RECENTER");
+            }
         }
 
-        EngineCmd::SetParam { ref stage, ref param, value } => {
+        EngineCmd::SetParam {
+            ref stage,
+            ref param,
+            value,
+        } => {
             if ctx.pipeline.set_param(stage, param, value) {
                 tracing::debug!("set {stage}.{param} = {value}");
             } else if stage == MARKER_STAGE {
@@ -1268,8 +1355,14 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
                         ctx.current_fov
                     );
                     ctx.current_fov = fov;
-                    ctx.state.current_fov.store(fov.to_bits(), Ordering::Relaxed);
-                    let _ = CameraConfig { fov_diag_deg: fov, ..CameraConfig::load() }.save();
+                    ctx.state
+                        .current_fov
+                        .store(fov.to_bits(), Ordering::Relaxed);
+                    let _ = CameraConfig {
+                        fov_diag_deg: fov,
+                        ..CameraConfig::load()
+                    }
+                    .save();
                 }
             }
 
@@ -1292,7 +1385,10 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
             let source = match kind {
                 SourceKind::Webcam => {
                     let s = cfg.webcam_selection();
-                    HeadSource::Webcam { index: s.index, name: s.name }
+                    HeadSource::Webcam {
+                        index: s.index,
+                        name: s.name,
+                    }
                 }
                 SourceKind::Tobii => match cfg.head_source {
                     t @ HeadSource::Tobii { .. } => t,
@@ -1306,7 +1402,9 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
         EngineCmd::SetFov { degrees } => {
             info!("setting FOV to {degrees}°");
             ctx.current_fov = degrees;
-            ctx.state.current_fov.store(degrees.to_bits(), Ordering::Relaxed);
+            ctx.state
+                .current_fov
+                .store(degrees.to_bits(), Ordering::Relaxed);
             let mut cam_cfg = CameraConfig::load();
             cam_cfg.fov_diag_deg = degrees;
             let _ = cam_cfg.save();
@@ -1326,7 +1424,10 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
             info!("overlay {}", if enabled { "enabled" } else { "disabled" });
         }
 
-        EngineCmd::StartRecording { path, size_limit_mb } => {
+        EngineCmd::StartRecording {
+            path,
+            size_limit_mb,
+        } => {
             // Stop any existing recording first.
             if let Some(ref mut rec) = ctx.recorder {
                 rec.write_event("RECORDING_STOPPED: superseded by new recording");
@@ -1339,9 +1440,15 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
                     rec.write_event(&format!(
                         "RECORDING_STARTED: camera_index={cam_idx} size_limit={size_limit_mb}MB"
                     ));
-                    ctx.state.recording_bytes.store(rec.bytes_written, Ordering::Relaxed);
-                    ctx.state.recording_status.store(RecordingStatus::Active as u8, Ordering::Relaxed);
-                    if let Ok(mut e) = ctx.state.recording_error.lock() { *e = None; }
+                    ctx.state
+                        .recording_bytes
+                        .store(rec.bytes_written, Ordering::Relaxed);
+                    ctx.state
+                        .recording_status
+                        .store(RecordingStatus::Active as u8, Ordering::Relaxed);
+                    if let Ok(mut e) = ctx.state.recording_error.lock() {
+                        *e = None;
+                    }
                     ctx.recorder = Some(rec);
                     info!("diagnostic recording started: {}", path.display());
                 }
@@ -1351,7 +1458,9 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
                     if let Ok(mut slot) = ctx.state.recording_error.lock() {
                         *slot = Some(msg);
                     }
-                    ctx.state.recording_status.store(RecordingStatus::Error as u8, Ordering::Relaxed);
+                    ctx.state
+                        .recording_status
+                        .store(RecordingStatus::Error as u8, Ordering::Relaxed);
                     ctx.state.recording_bytes.store(0, Ordering::Relaxed);
                 }
             }
@@ -1363,9 +1472,13 @@ async fn dispatch_cmd(cmd: EngineCmd, ctx: &mut RunLoopCtx) {
                 rec.flush();
             }
             ctx.recorder = None;
-            ctx.state.recording_status.store(RecordingStatus::Idle as u8, Ordering::Relaxed);
+            ctx.state
+                .recording_status
+                .store(RecordingStatus::Idle as u8, Ordering::Relaxed);
             ctx.state.recording_bytes.store(0, Ordering::Relaxed);
-            if let Ok(mut e) = ctx.state.recording_error.lock() { *e = None; }
+            if let Ok(mut e) = ctx.state.recording_error.lock() {
+                *e = None;
+            }
             info!("diagnostic recording stopped");
         }
 
@@ -1432,8 +1545,12 @@ fn parse_cmd_line(line: &str, overlay_enabled: &Arc<AtomicBool>) -> Option<Engin
         // `switch-source tobii` | `switch-source webcam [index]`
         let parts: Vec<&str> = rest.split_whitespace().collect();
         return match parts[..] {
-            ["tobii"] => Some(EngineCmd::SwitchSourceKind { kind: SourceKind::Tobii }),
-            ["webcam"] => Some(EngineCmd::SwitchSourceKind { kind: SourceKind::Webcam }),
+            ["tobii"] => Some(EngineCmd::SwitchSourceKind {
+                kind: SourceKind::Tobii,
+            }),
+            ["webcam"] => Some(EngineCmd::SwitchSourceKind {
+                kind: SourceKind::Webcam,
+            }),
             ["webcam", i] => match i.parse::<u32>() {
                 Ok(index) => Some(EngineCmd::SwitchCamera { index }),
                 Err(_) => {
@@ -1449,7 +1566,9 @@ fn parse_cmd_line(line: &str, overlay_enabled: &Arc<AtomicBool>) -> Option<Engin
     }
     if let Some(rest) = line.strip_prefix("set-fov ") {
         if let Ok(degrees) = rest.trim().parse::<f32>() {
-            return Some(EngineCmd::SetFov { degrees: degrees.clamp(1.0, 180.0) });
+            return Some(EngineCmd::SetFov {
+                degrees: degrees.clamp(1.0, 180.0),
+            });
         }
         warn!("bad FOV value: {line:?}");
         return None;
@@ -1477,7 +1596,10 @@ fn parse_cmd_line(line: &str, overlay_enabled: &Arc<AtomicBool>) -> Option<Engin
                 "z" => Some(2),
                 _ => None,
             };
-            let delta = delta_s.parse::<f32>().ok().filter(|d| d.is_finite() && d.abs() <= 0.6);
+            let delta = delta_s
+                .parse::<f32>()
+                .ok()
+                .filter(|d| d.is_finite() && d.abs() <= 0.6);
             if let (Some(axis), Some(delta_m)) = (axis, delta) {
                 return Some(EngineCmd::MsfsSeatNudge { axis, delta_m });
             }
@@ -1507,8 +1629,8 @@ fn parse_cmd_line(line: &str, overlay_enabled: &Arc<AtomicBool>) -> Option<Engin
 /// run loop. This socket is the bridge for tools that can't link against the
 /// engine crate directly (shell scripts, the X-Plane plugin, etc.).
 async fn cmd_listener(
-    path:            std::path::PathBuf,
-    cmd_tx:          mpsc::Sender<EngineCmd>,
+    path: std::path::PathBuf,
+    cmd_tx: mpsc::Sender<EngineCmd>,
     overlay_enabled: Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
     use tokio::io::AsyncReadExt;
@@ -1686,7 +1808,10 @@ fn resolve_models_dir() -> PathBuf {
     {
         return p;
     }
-    if let Some(p) = std::env::current_dir().ok().and_then(|d| find_models_upwards(&d)) {
+    if let Some(p) = std::env::current_dir()
+        .ok()
+        .and_then(|d| find_models_upwards(&d))
+    {
         return p;
     }
     // Nothing found. Returning the historical relative path keeps the failure
@@ -1695,12 +1820,12 @@ fn resolve_models_dir() -> PathBuf {
 }
 
 const FOV_LOOKUP: &[(&str, f32)] = &[
-    ("c920",       78.0),
-    ("delan",      75.0),
-    ("brio 500",   78.0),
-    ("mx brio",    78.0),
+    ("c920", 78.0),
+    ("delan", 75.0),
+    ("brio 500", 78.0),
+    ("mx brio", 78.0),
     ("nexigo n60", 110.0),
-    ("facecam",    84.0),
+    ("facecam", 84.0),
 ];
 
 fn device_name(index: u32) -> Option<String> {
@@ -1711,7 +1836,10 @@ fn device_name(index: u32) -> Option<String> {
 
 fn lookup_fov(name: &str) -> Option<f32> {
     let lower = name.to_lowercase();
-    FOV_LOOKUP.iter().find(|(k, _)| lower.contains(k)).map(|(_, fov)| *fov)
+    FOV_LOOKUP
+        .iter()
+        .find(|(k, _)| lower.contains(k))
+        .map(|(_, fov)| *fov)
 }
 
 // Re-export the IPC socket path so callers (GUI settings panel) don't need a
@@ -1730,12 +1858,19 @@ mod cmd_parse_tests {
     fn switch_source_commands() {
         assert!(matches!(
             parse("switch-source tobii"),
-            Some(EngineCmd::SwitchSourceKind { kind: SourceKind::Tobii })
+            Some(EngineCmd::SwitchSourceKind {
+                kind: SourceKind::Tobii
+            })
         ));
-        assert!(matches!(parse("switch-source webcam 3"), Some(EngineCmd::SwitchCamera { index: 3 })));
+        assert!(matches!(
+            parse("switch-source webcam 3"),
+            Some(EngineCmd::SwitchCamera { index: 3 })
+        ));
         assert!(matches!(
             parse("switch-source webcam"),
-            Some(EngineCmd::SwitchSourceKind { kind: SourceKind::Webcam })
+            Some(EngineCmd::SwitchSourceKind {
+                kind: SourceKind::Webcam
+            })
         ));
         assert!(parse("switch-source webcam x").is_none());
         assert!(parse("switch-source smoothtrack").is_none());
@@ -1752,7 +1887,11 @@ mod cmd_parse_tests {
         assert!(matches!(parse("recenter"), Some(EngineCmd::Recenter)));
 
         match parse("set accela yaw.smoothing 0.6") {
-            Some(EngineCmd::SetParam { stage, param, value }) => {
+            Some(EngineCmd::SetParam {
+                stage,
+                param,
+                value,
+            }) => {
                 assert_eq!(stage, "accela");
                 assert_eq!(param, "yaw.smoothing");
                 assert!((value - 0.6).abs() < 1e-6);
@@ -1762,9 +1901,15 @@ mod cmd_parse_tests {
 
         // Unknown stage/param names are accepted on purpose — that is what
         // makes `set marker tick 1` a zero-side-effect event marker.
-        assert!(matches!(parse("set marker tick 1"), Some(EngineCmd::SetParam { .. })));
+        assert!(matches!(
+            parse("set marker tick 1"),
+            Some(EngineCmd::SetParam { .. })
+        ));
 
-        assert!(matches!(parse("switch-camera 2"), Some(EngineCmd::SwitchCamera { index: 2 })));
+        assert!(matches!(
+            parse("switch-camera 2"),
+            Some(EngineCmd::SwitchCamera { index: 2 })
+        ));
 
         match parse("set-fov 78") {
             Some(EngineCmd::SetFov { degrees }) => assert!((degrees - 78.0).abs() < 1e-6),
@@ -1777,13 +1922,13 @@ mod cmd_parse_tests {
         for bad in [
             "",
             "   ",
-            "reCenter",                 // case-sensitive by design
+            "reCenter", // case-sensitive by design
             "set",
             "set accela",               // too few tokens
             "set accela yaw.smoothing", // no value
             "set accela yaw.smoothing abc",
             "switch-camera",
-            "switch-camera -1",         // u32 parse fails
+            "switch-camera -1", // u32 parse fails
             "switch-camera two",
             "set-fov",
             "set-fov wide",
@@ -1813,7 +1958,10 @@ mod cmd_parse_tests {
         assert!(parse_cmd_line("overlay 1", &flag).is_none());
         assert!(flag.load(Ordering::Relaxed), "overlay 1 must set the flag");
         assert!(parse_cmd_line("overlay 0", &flag).is_none());
-        assert!(!flag.load(Ordering::Relaxed), "overlay 0 must clear the flag");
+        assert!(
+            !flag.load(Ordering::Relaxed),
+            "overlay 0 must clear the flag"
+        );
         // Anything that isn't "1" reads as off rather than erroring.
         flag.store(true, Ordering::Relaxed);
         assert!(parse_cmd_line("overlay yes", &flag).is_none());
@@ -1823,11 +1971,20 @@ mod cmd_parse_tests {
     #[cfg(feature = "output-simconnect")]
     #[test]
     fn msfs_seat_and_enabled_commands() {
-        assert!(matches!(parse("msfs-seat reset"), Some(EngineCmd::MsfsSeatReset)));
+        assert!(matches!(
+            parse("msfs-seat reset"),
+            Some(EngineCmd::MsfsSeatReset)
+        ));
 
-        for (line, want_axis) in [("msfs-seat x 0.01", 0u8), ("msfs-seat y -0.02", 1), ("msfs-seat z 0.6", 2)] {
+        for (line, want_axis) in [
+            ("msfs-seat x 0.01", 0u8),
+            ("msfs-seat y -0.02", 1),
+            ("msfs-seat z 0.6", 2),
+        ] {
             match parse(line) {
-                Some(EngineCmd::MsfsSeatNudge { axis, .. }) => assert_eq!(axis, want_axis, "{line}"),
+                Some(EngineCmd::MsfsSeatNudge { axis, .. }) => {
+                    assert_eq!(axis, want_axis, "{line}")
+                }
                 other => panic!("{line}: {other:?}"),
             }
         }
@@ -1837,8 +1994,8 @@ mod cmd_parse_tests {
         for bad in [
             "msfs-seat x 0.7",
             "msfs-seat x -0.61",
-            "msfs-seat w 0.1",   // bad axis
-            "msfs-seat x",       // missing delta
+            "msfs-seat w 0.1", // bad axis
+            "msfs-seat x",     // missing delta
             "msfs-seat x nan",
             "msfs-seat x inf",
             "msfs-seat",
@@ -1846,9 +2003,18 @@ mod cmd_parse_tests {
             assert!(parse(bad).is_none(), "{bad:?} should not parse");
         }
 
-        assert!(matches!(parse("msfs-enabled 0"), Some(EngineCmd::SimConnectEnabled(false))));
-        assert!(matches!(parse("msfs-enabled 1"), Some(EngineCmd::SimConnectEnabled(true))));
-        assert!(matches!(parse("msfs-enabled toggle"), Some(EngineCmd::SimConnectToggleEnabled)));
+        assert!(matches!(
+            parse("msfs-enabled 0"),
+            Some(EngineCmd::SimConnectEnabled(false))
+        ));
+        assert!(matches!(
+            parse("msfs-enabled 1"),
+            Some(EngineCmd::SimConnectEnabled(true))
+        ));
+        assert!(matches!(
+            parse("msfs-enabled toggle"),
+            Some(EngineCmd::SimConnectToggleEnabled)
+        ));
         for bad in ["msfs-enabled", "msfs-enabled 2", "msfs-enabled on"] {
             assert!(parse(bad).is_none(), "{bad:?} should not parse");
         }
@@ -1875,8 +2041,14 @@ mod models_dir_tests {
         let exe_dir = root.join("target").join("release");
         std::fs::create_dir_all(&exe_dir).expect("temp tree");
 
-        assert_eq!(find_models_upwards(&exe_dir).as_deref(), Some(models.as_path()));
-        assert_eq!(find_models_upwards(&root).as_deref(), Some(models.as_path()));
+        assert_eq!(
+            find_models_upwards(&exe_dir).as_deref(),
+            Some(models.as_path())
+        );
+        assert_eq!(
+            find_models_upwards(&root).as_deref(),
+            Some(models.as_path())
+        );
 
         // A tree with no models must not walk out to the filesystem root.
         let bare = root.join("elsewhere").join("deep");

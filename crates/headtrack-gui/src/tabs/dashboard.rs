@@ -1,5 +1,5 @@
 use crate::{
-    colors, find_xplane_plugin_so, sc_bin64_path, ui, AXIS_LABELS, AXIS_UNITS, HeadtrackApp,
+    colors, find_xplane_plugin_so, sc_bin64_path, ui, HeadtrackApp, AXIS_LABELS, AXIS_UNITS,
 };
 use eframe::egui;
 use egui_phosphor::regular as ph;
@@ -82,7 +82,11 @@ impl HeadtrackApp {
         // The Tobii has no camera picture to show (its IR frames never leave
         // the tracker thread), and the texture would be the webcam's last frame.
         let tobii = self.source_kind == SourceKind::Tobii;
-        let tex = if tobii { None } else { self.preview_texture(ui) };
+        let tex = if tobii {
+            None
+        } else {
+            self.preview_texture(ui)
+        };
         let aspect = self.preview_aspect();
 
         let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
@@ -94,10 +98,8 @@ impl HeadtrackApp {
             // letterbox rather than pooling on one side.
             let inner = rect.shrink(1.0);
             let scale = (inner.width() / aspect).min(inner.height());
-            let img = egui::Rect::from_center_size(
-                inner.center(),
-                egui::vec2(scale * aspect, scale),
-            );
+            let img =
+                egui::Rect::from_center_size(inner.center(), egui::vec2(scale * aspect, scale));
             painter.image(
                 id,
                 img,
@@ -128,19 +130,28 @@ impl HeadtrackApp {
                 return height;
             }
             if streaming {
-                let pose = *self.state.latest_pose.lock().unwrap_or_else(|e| e.into_inner());
+                let pose = *self
+                    .state
+                    .latest_pose
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 let bubble = egui::Rect::from_min_max(
                     rect.left_top() + egui::vec2(24.0, 24.0),
                     rect.right_bottom() - egui::vec2(24.0, 34.0),
                 );
                 if bubble.width() > 40.0 && bubble.height() > 40.0 {
-                    ui::paint_pose_bubble(ui, &painter, bubble, pose.yaw, pose.pitch, pose.roll, None);
+                    ui::paint_pose_bubble(
+                        ui, &painter, bubble, pose.yaw, pose.pitch, pose.roll, None,
+                    );
                 }
             }
             let caption = if streaming {
                 "Tobii tracking \u{00b7} no camera picture".to_string()
             } else {
-                format!("Tobii: {}", super::tobii::status_label(&status).0.to_lowercase())
+                format!(
+                    "Tobii: {}",
+                    super::tobii::status_label(&status).0.to_lowercase()
+                )
             };
             ui::hud_overlay(&painter, rect, streaming, Some(&caption));
             return height;

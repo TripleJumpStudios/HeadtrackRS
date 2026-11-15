@@ -127,8 +127,7 @@ impl YuNetDetector {
         }
 
         let shape = [1usize, 3, INPUT_SIZE as usize, INPUT_SIZE as usize];
-        let tensor =
-            Tensor::<f32>::from_array((shape, input)).context("building YuNet tensor")?;
+        let tensor = Tensor::<f32>::from_array((shape, input)).context("building YuNet tensor")?;
         let outputs = self
             .session
             .run(ort::inputs![tensor])
@@ -175,10 +174,7 @@ impl YuNetDetector {
                 let kx = i * 10;
                 let mut pts = [(0.0f32, 0.0f32); KPS];
                 for (k, p) in pts.iter_mut().enumerate() {
-                    *p = (
-                        (col + kps[kx + k * 2]) * s,
-                        (row + kps[kx + k * 2 + 1]) * s,
-                    );
+                    *p = ((col + kps[kx + k * 2]) * s, (row + kps[kx + k * 2 + 1]) * s);
                 }
 
                 all.push((score, bb, pts));
@@ -211,7 +207,10 @@ impl YuNetDetector {
         };
 
         debug!("YuNet: face found (score={:.3})", det.score);
-        Ok(Some(FaceDetection { bbox: det, kps: kps_orig }))
+        Ok(Some(FaceDetection {
+            bbox: det,
+            kps: kps_orig,
+        }))
     }
 }
 

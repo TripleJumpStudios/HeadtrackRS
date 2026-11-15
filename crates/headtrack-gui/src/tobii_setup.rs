@@ -87,7 +87,10 @@ pub struct TobiiSetup {
 
 impl Default for TobiiSetup {
     fn default() -> Self {
-        Self { state: SetupState::Idle, rx: None }
+        Self {
+            state: SetupState::Idle,
+            rx: None,
+        }
     }
 }
 
@@ -155,7 +158,9 @@ fn run(inv: &Invocation) -> Result<(), String> {
         // its exit status below says why.
         let _ = stdin.write_all(inv.stdin.as_bytes());
     }
-    let out = child.wait_with_output().map_err(|e| format!("pkexec did not finish: {e}"))?;
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("pkexec did not finish: {e}"))?;
     exit_result(out.status.code(), &String::from_utf8_lossy(&out.stderr))
 }
 
@@ -205,7 +210,10 @@ mod tests {
         );
         // No broad grants: no MODE, GROUP, OWNER or RUN.
         for forbidden in ["MODE", "GROUP", "OWNER", "RUN"] {
-            assert!(!lines[0].contains(forbidden), "rule must not set {forbidden}");
+            assert!(
+                !lines[0].contains(forbidden),
+                "rule must not set {forbidden}"
+            );
         }
         assert!(RULE_TEXT.ends_with('\n'));
     }
@@ -214,7 +222,10 @@ mod tests {
     fn rule_path_matches_the_shipped_file_and_sorts_before_seat_late() {
         let name = Path::new(RULE_PATH).file_name().unwrap().to_str().unwrap();
         assert_eq!(name, "70-headtrackrs-tobii.rules");
-        assert!(name < "73-seat-late.rules", "uaccess is applied by 73-seat-late");
+        assert!(
+            name < "73-seat-late.rules",
+            "uaccess is applied by 73-seat-late"
+        );
         assert!(RULE_PATH.starts_with("/etc/udev/rules.d/"));
     }
 
@@ -230,10 +241,18 @@ mod tests {
         assert_eq!(inv.stdin, RULE_TEXT);
 
         let script = &inv.args[2];
-        assert!(!script.contains(RULE_PATH), "path goes in $1, not the script");
+        assert!(
+            !script.contains(RULE_PATH),
+            "path goes in $1, not the script"
+        );
         assert!(script.starts_with("set -e\n"));
         let steps: Vec<&str> = script.lines().collect();
-        let pos = |s: &str| steps.iter().position(|l| l.starts_with(s)).unwrap_or_else(|| panic!("missing {s}"));
+        let pos = |s: &str| {
+            steps
+                .iter()
+                .position(|l| l.starts_with(s))
+                .unwrap_or_else(|| panic!("missing {s}"))
+        };
         assert!(pos("cat > \"$tmp\"") < pos("mv -f \"$tmp\" \"$dst\""));
         assert!(pos("mv -f") < pos("udevadm control --reload-rules"));
         assert!(pos("udevadm control") < pos("udevadm trigger"));
@@ -242,7 +261,10 @@ mod tests {
     #[test]
     fn trigger_targets_the_same_device_as_the_rule() {
         let script = &install_invocation().args[2];
-        let trigger = script.lines().find(|l| l.starts_with("udevadm trigger")).unwrap();
+        let trigger = script
+            .lines()
+            .find(|l| l.starts_with("udevadm trigger"))
+            .unwrap();
         assert!(trigger.contains(&format!("--attr-match=idVendor={VENDOR_ID}")));
         assert!(trigger.contains(&format!("--attr-match=idProduct={PRODUCT_ID}")));
         assert!(trigger.contains("--subsystem-match=usb"));
@@ -253,8 +275,12 @@ mod tests {
     #[test]
     fn exit_codes_map_to_plain_messages() {
         assert_eq!(exit_result(Some(0), ""), Ok(()));
-        assert!(exit_result(Some(126), "").unwrap_err().contains("Cancelled"));
-        assert!(exit_result(Some(127), "").unwrap_err().contains("Not authorised"));
+        assert!(exit_result(Some(126), "")
+            .unwrap_err()
+            .contains("Cancelled"));
+        assert!(exit_result(Some(127), "")
+            .unwrap_err()
+            .contains("Not authorised"));
         assert_eq!(
             exit_result(Some(1), "x\nmv: cannot move\n").unwrap_err(),
             "Setup failed (exit 1): mv: cannot move"

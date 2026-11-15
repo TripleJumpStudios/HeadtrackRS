@@ -71,7 +71,10 @@ impl CaptureErrors {
                 .saturating_mul(1u32 << (n - 2).min(4))
                 .min(MAX_BACKOFF),
         };
-        CaptureStep::Retry { warn: self.run == 1, wait }
+        CaptureStep::Retry {
+            warn: self.run == 1,
+            wait,
+        }
     }
 
     /// Errors in the current run.
@@ -81,7 +84,8 @@ impl CaptureErrors {
 
     /// How long the current run has lasted at `now`.
     pub(crate) fn run_age(&self, now: Instant) -> Duration {
-        self.since.map_or(Duration::ZERO, |s| now.saturating_duration_since(s))
+        self.since
+            .map_or(Duration::ZERO, |s| now.saturating_duration_since(s))
     }
 }
 
@@ -136,17 +140,13 @@ mod tests {
         let mut now = t0;
         let (mut warns, mut retries) = (0, 0);
         let mut waits = Vec::new();
-        loop {
-            match errs.error(now, false) {
-                CaptureStep::Retry { warn, wait } => {
-                    warns += usize::from(warn);
-                    retries += 1;
-                    assert!(wait <= MAX_BACKOFF, "backoff is bounded: {wait:?}");
-                    waits.push(wait);
-                    now += wait;
-                }
-                CaptureStep::GiveUp => break,
-            }
+        // Ends on `GiveUp`, the only other step.
+        while let CaptureStep::Retry { warn, wait } = errs.error(now, false) {
+            warns += usize::from(warn);
+            retries += 1;
+            assert!(wait <= MAX_BACKOFF, "backoff is bounded: {wait:?}");
+            waits.push(wait);
+            now += wait;
             assert!(retries < 100, "must give up, not retry forever");
         }
         assert_eq!(warns, 1, "one WARN per run of errors");
@@ -175,14 +175,29 @@ mod tests {
     fn a_good_frame_ends_the_run() {
         let t0 = Instant::now();
         let mut errs = CaptureErrors::default();
-        assert_eq!(errs.error(t0, false), CaptureStep::Retry { warn: true, wait: Duration::ZERO });
-        assert!(matches!(errs.error(t0, false), CaptureStep::Retry { warn: false, .. }));
+        assert_eq!(
+            errs.error(t0, false),
+            CaptureStep::Retry {
+                warn: true,
+                wait: Duration::ZERO
+            }
+        );
+        assert!(matches!(
+            errs.error(t0, false),
+            CaptureStep::Retry { warn: false, .. }
+        ));
         assert_eq!(errs.run_len(), 2);
         assert_eq!(errs.ok(), 2);
         assert_eq!(errs.ok(), 0);
         // Much later: the old run's start must not count against the new one.
         let later = t0 + Duration::from_secs(60);
-        assert_eq!(errs.error(later, false), CaptureStep::Retry { warn: true, wait: Duration::ZERO });
+        assert_eq!(
+            errs.error(later, false),
+            CaptureStep::Retry {
+                warn: true,
+                wait: Duration::ZERO
+            }
+        );
         assert_eq!(errs.run_age(later), Duration::ZERO);
     }
 
@@ -191,7 +206,8 @@ mod tests {
         let gone = anyhow::Error::from(std::io::Error::from_raw_os_error(ENODEV))
             .context("capturing frame");
         assert!(is_device_gone(&gone));
-        let busy = anyhow::Error::from(std::io::Error::from_raw_os_error(16)).context("capturing frame");
+        let busy =
+            anyhow::Error::from(std::io::Error::from_raw_os_error(16)).context("capturing frame");
         assert!(!is_device_gone(&busy));
         assert!(!is_device_gone(&anyhow::anyhow!("decoding MJPEG frame")));
     }
@@ -203,7 +219,10 @@ mod tests {
         assert!(send_pose(&tx, 1));
         assert!(send_pose(&tx, 2), "full: keep going");
         assert_eq!(rx.try_recv(), Ok(1));
-        assert!(rx.try_recv().is_err(), "the pose sent while full was dropped");
+        assert!(
+            rx.try_recv().is_err(),
+            "the pose sent while full was dropped"
+        );
         drop(rx);
         assert!(!send_pose(&tx, 3), "disconnected: stop");
     }

@@ -1,7 +1,7 @@
-use headtrack_core::pipeline::stage_names;
 use crate::{axis_max, colors, ui, HeadtrackApp, AXIS_LABELS, AXIS_NAMES, AXIS_UNITS};
 use eframe::egui;
 use egui_phosphor::regular as ph;
+use headtrack_core::pipeline::stage_names;
 use headtrack_engine::{EngineCmd, RecordingStatus};
 use std::sync::atomic::Ordering;
 
@@ -64,38 +64,48 @@ impl HeadtrackApp {
                 ui.add_space(6.0);
                 ui.add_sized(
                     [50.0, 20.0],
-                    egui::Label::new(
-                        egui::RichText::new(AXIS_LABELS[i])
-                            .monospace()
-                            .color(if active {
-                                ui::axis_color(i)
-                            } else {
-                                colors::DIMMER
-                            }),
-                    )
+                    egui::Label::new(egui::RichText::new(AXIS_LABELS[i]).monospace().color(
+                        if active {
+                            ui::axis_color(i)
+                        } else {
+                            colors::DIMMER
+                        },
+                    ))
                     .selectable(false),
                 );
                 ui.add_sized(
                     [76.0, 20.0],
                     egui::Label::new(
-                        egui::RichText::new(format!("{:>6}{}", ui::signed(value, 1), AXIS_UNITS[i]))
-                            .monospace()
-                            .color(colors::TEXT),
+                        egui::RichText::new(format!(
+                            "{:>6}{}",
+                            ui::signed(value, 1),
+                            AXIS_UNITS[i]
+                        ))
+                        .monospace()
+                        .color(colors::TEXT),
                     )
                     .selectable(false),
                 );
                 let bar_w = (ui.available_width() - 40.0).clamp(80.0, 260.0);
                 ui::draw_bar(ui, value, axis_max(i), active, bar_w);
                 if !active {
-                    ui.label(egui::RichText::new("off").size(colors::TEXT_SM).color(colors::DIMMER))
-                        .on_hover_text("Disabled in the Tuning tab");
+                    ui.label(
+                        egui::RichText::new("off")
+                            .size(colors::TEXT_SM)
+                            .color(colors::DIMMER),
+                    )
+                    .on_hover_text("Disabled in the Tuning tab");
                 }
             });
 
             // Whole-row click target; the highlight is painted behind it.
             let rect = row.response.rect;
             let resp = ui
-                .interact(rect, egui::Id::new(("adv_axis_row", i)), egui::Sense::click())
+                .interact(
+                    rect,
+                    egui::Id::new(("adv_axis_row", i)),
+                    egui::Sense::click(),
+                )
                 .on_hover_text("Click to edit this axis");
             if resp.clicked() {
                 self.dev_selected_axis = i;
@@ -163,7 +173,11 @@ impl HeadtrackApp {
                     2,
                 ) {
                     let v = self.profile.curve[i].sensitivity;
-                    self.send_set(stage_names::RESPONSE_CURVE, &format!("{}.sensitivity", AXIS_NAMES[i]), v);
+                    self.send_set(
+                        stage_names::RESPONSE_CURVE,
+                        &format!("{}.sensitivity", AXIS_NAMES[i]),
+                        v,
+                    );
                     self.profile_dirty = true;
                 }
                 if ui::param_cell(
@@ -174,7 +188,11 @@ impl HeadtrackApp {
                     2,
                 ) {
                     let v = self.profile.curve[i].exponent;
-                    self.send_set(stage_names::RESPONSE_CURVE, &format!("{}.exponent", AXIS_NAMES[i]), v);
+                    self.send_set(
+                        stage_names::RESPONSE_CURVE,
+                        &format!("{}.exponent", AXIS_NAMES[i]),
+                        v,
+                    );
                     self.profile_dirty = true;
                 }
             });
@@ -193,7 +211,11 @@ impl HeadtrackApp {
                     2,
                 ) {
                     let v = self.profile.accela[i].deadzone;
-                    self.send_set(stage_names::ACCELA, &format!("{}.deadzone", AXIS_NAMES[i]), v);
+                    self.send_set(
+                        stage_names::ACCELA,
+                        &format!("{}.deadzone", AXIS_NAMES[i]),
+                        v,
+                    );
                     self.profile_dirty = true;
                 }
                 if ui::param_cell(
@@ -204,7 +226,11 @@ impl HeadtrackApp {
                     2,
                 ) {
                     let v = self.profile.accela[i].smoothing;
-                    self.send_set(stage_names::ACCELA, &format!("{}.smoothing", AXIS_NAMES[i]), v);
+                    self.send_set(
+                        stage_names::ACCELA,
+                        &format!("{}.smoothing", AXIS_NAMES[i]),
+                        v,
+                    );
                     self.profile_dirty = true;
                 }
                 if ui::param_cell(
@@ -215,7 +241,11 @@ impl HeadtrackApp {
                     2,
                 ) {
                     let v = self.profile.accela[i].exponent;
-                    self.send_set(stage_names::ACCELA, &format!("{}.exponent", AXIS_NAMES[i]), v);
+                    self.send_set(
+                        stage_names::ACCELA,
+                        &format!("{}.exponent", AXIS_NAMES[i]),
+                        v,
+                    );
                     self.profile_dirty = true;
                 }
             });
@@ -264,7 +294,11 @@ impl HeadtrackApp {
     /// `pitch_to_yaw` and `pitch_to_z` are new here: both were already carried
     /// in `ProfileConfig` and pushed by `profile_params`, but had no control.
     fn ui_advanced_cross_axis(&mut self, ui: &mut egui::Ui) {
-        ui::note(ui, "Cancels bleed between axes, such as a yaw that drags pitch with it.", colors::DIM);
+        ui::note(
+            ui,
+            "Cancels bleed between axes, such as a yaw that drags pitch with it.",
+            colors::DIM,
+        );
         ui.add_space(6.0);
 
         let mut edits: Vec<(&'static str, f32)> = Vec::new();
@@ -384,7 +418,11 @@ impl HeadtrackApp {
             self.profile.center.recenter_range = enabled.then_some(RECENTER_RANGE_DEFAULT);
             if let Some(ranges) = self.profile.center.recenter_range {
                 for (i, axis) in AXIS_NAMES.iter().enumerate() {
-                    self.send_set(stage_names::CENTER, &format!("{axis}.recenter_range"), ranges[i]);
+                    self.send_set(
+                        stage_names::CENTER,
+                        &format!("{axis}.recenter_range"),
+                        ranges[i],
+                    );
                 }
             }
             self.profile_dirty = true;
@@ -406,7 +444,11 @@ impl HeadtrackApp {
             }
         }
         for (i, value) in edits {
-            self.send_set(stage_names::CENTER, &format!("{}.recenter_range", AXIS_NAMES[i]), value);
+            self.send_set(
+                stage_names::CENTER,
+                &format!("{}.recenter_range", AXIS_NAMES[i]),
+                value,
+            );
             self.profile_dirty = true;
         }
     }
@@ -450,7 +492,11 @@ impl HeadtrackApp {
                 }
                 // The app's single size-limit control. Settings used to carry a
                 // second copy of this same field.
-                ui.label(egui::RichText::new("Max size").size(colors::TEXT_BODY).color(colors::DIM));
+                ui.label(
+                    egui::RichText::new("Max size")
+                        .size(colors::TEXT_BODY)
+                        .color(colors::DIM),
+                );
                 ui.add(
                     egui::DragValue::new(&mut self.diag_size_limit_mb)
                         .range(1..=500)
@@ -485,9 +531,11 @@ impl HeadtrackApp {
 
             RecordingStatus::LimitReached => {
                 self.diag_recording_start = None;
-                ui.label(
-                    ui::icon_text(ph::WARNING, "Size limit reached", colors::WARN),
-                );
+                ui.label(ui::icon_text(
+                    ph::WARNING,
+                    "Size limit reached",
+                    colors::WARN,
+                ));
                 if ui::tool_button(ui, "", "Dismiss", ui::ButtonKind::Normal).clicked() {
                     self.cmd.send(EngineCmd::StopRecording);
                 }
@@ -504,9 +552,7 @@ impl HeadtrackApp {
                     .unwrap_or_else(|| "unknown error".to_string());
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
-                        ui.label(
-                            ui::icon_text(ph::WARNING, "Recording failed", colors::ERR),
-                        );
+                        ui.label(ui::icon_text(ph::WARNING, "Recording failed", colors::ERR));
                         if ui::tool_button(ui, "", "Dismiss", ui::ButtonKind::Normal).clicked() {
                             self.cmd.send(EngineCmd::StopRecording);
                         }

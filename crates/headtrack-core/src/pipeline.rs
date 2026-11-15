@@ -87,7 +87,10 @@ pub const MAX_TRUSTED_DISTANCE_MM: f32 = 1100.0;
 
 impl DistanceScale {
     /// Neutral scale — every threshold used exactly as authored.
-    pub const NONE: Self = Self { lateral: 1.0, depth: 1.0 };
+    pub const NONE: Self = Self {
+        lateral: 1.0,
+        depth: 1.0,
+    };
 
     /// Scale for a measured standoff in millimetres (sign-insensitive).
     pub fn from_standoff_mm(standoff_mm: f32) -> Self {
@@ -95,7 +98,10 @@ impl DistanceScale {
             .abs()
             .clamp(MIN_TRUSTED_DISTANCE_MM, MAX_TRUSTED_DISTANCE_MM);
         let ratio = d / REFERENCE_DISTANCE_MM;
-        Self { lateral: ratio, depth: ratio * ratio }
+        Self {
+            lateral: ratio,
+            depth: ratio * ratio,
+        }
     }
 
     /// Per-axis multiplier in pipeline axis order
@@ -276,11 +282,31 @@ pub fn profile_params(cfg: &crate::config::ProfileConfig) -> Vec<(&'static str, 
     let mut out = Vec::with_capacity(64);
 
     for (i, axis) in AXIS_NAMES.iter().enumerate() {
-        out.push((sn::ACCELA, format!("{axis}.deadzone"), cfg.accela[i].deadzone));
-        out.push((sn::ACCELA, format!("{axis}.smoothing"), cfg.accela[i].smoothing));
-        out.push((sn::ACCELA, format!("{axis}.exponent"), cfg.accela[i].exponent));
-        out.push((sn::RESPONSE_CURVE, format!("{axis}.sensitivity"), cfg.curve[i].sensitivity));
-        out.push((sn::RESPONSE_CURVE, format!("{axis}.exponent"), cfg.curve[i].exponent));
+        out.push((
+            sn::ACCELA,
+            format!("{axis}.deadzone"),
+            cfg.accela[i].deadzone,
+        ));
+        out.push((
+            sn::ACCELA,
+            format!("{axis}.smoothing"),
+            cfg.accela[i].smoothing,
+        ));
+        out.push((
+            sn::ACCELA,
+            format!("{axis}.exponent"),
+            cfg.accela[i].exponent,
+        ));
+        out.push((
+            sn::RESPONSE_CURVE,
+            format!("{axis}.sensitivity"),
+            cfg.curve[i].sensitivity,
+        ));
+        out.push((
+            sn::RESPONSE_CURVE,
+            format!("{axis}.exponent"),
+            cfg.curve[i].exponent,
+        ));
         out.push((sn::DEADZONE, (*axis).to_string(), cfg.deadzone[i]));
         out.push((sn::SLEW_LIMIT, (*axis).to_string(), cfg.slew_limit[i]));
     }
@@ -304,7 +330,11 @@ pub fn profile_params(cfg: &crate::config::ProfileConfig) -> Vec<(&'static str, 
     }
 
     out.push((sn::CENTER, "drift_rate".to_string(), cfg.center.drift_rate));
-    out.push((sn::CENTER, "z.drift_mult".to_string(), cfg.center.z_drift_mult));
+    out.push((
+        sn::CENTER,
+        "z.drift_mult".to_string(),
+        cfg.center.z_drift_mult,
+    ));
     if let Some(ranges) = cfg.center.recenter_range {
         for (i, axis) in AXIS_NAMES.iter().enumerate() {
             out.push((sn::CENTER, format!("{axis}.recenter_range"), ranges[i]));
@@ -348,14 +378,16 @@ pub mod stages {
     /// Parameters via `set_param`:
     /// - `"yaw"`, `"pitch"`, `"roll"`, `"x"`, `"y"`, `"z"` — 1.0 to enable, 0.0 to disable
     pub struct MedianFilterStage {
-        bufs:    [[f32; 3]; 6],
-        idx:     [usize; 6],
-        count:   [u8; 6],
+        bufs: [[f32; 3]; 6],
+        idx: [usize; 6],
+        count: [u8; 6],
         enabled: [bool; 6],
     }
 
     impl Default for MedianFilterStage {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl MedianFilterStage {
@@ -367,9 +399,9 @@ pub mod stages {
         /// single biggest perceptual smoothness win in A/B testing 2026-05-10.
         pub fn new() -> Self {
             Self {
-                bufs:    [[0.0; 3]; 6],
-                idx:     [0; 6],
-                count:   [0; 6],
+                bufs: [[0.0; 3]; 6],
+                idx: [0; 6],
+                count: [0; 6],
                 //          yaw   pitch roll   x      y      z
                 enabled: [true, true, false, false, false, true],
             }
@@ -385,29 +417,39 @@ pub mod stages {
     }
 
     impl PipelineStage for MedianFilterStage {
-        fn name(&self) -> &'static str { crate::pipeline::stage_names::MEDIAN_FILTER }
+        fn name(&self) -> &'static str {
+            crate::pipeline::stage_names::MEDIAN_FILTER
+        }
 
         fn process(&mut self, pose: Pose, _dt: f32) -> Pose {
             let vals = [pose.yaw, pose.pitch, pose.roll, pose.x, pose.y, pose.z];
             let mut out = vals;
             for i in 0..6 {
-                if !self.enabled[i] { continue; }
+                if !self.enabled[i] {
+                    continue;
+                }
                 self.bufs[i][self.idx[i]] = vals[i];
                 self.idx[i] = (self.idx[i] + 1) % 3;
-                if self.count[i] < 3 { self.count[i] += 1; }
+                if self.count[i] < 3 {
+                    self.count[i] += 1;
+                }
                 if self.count[i] >= 3 {
                     out[i] = Self::median3(self.bufs[i][0], self.bufs[i][1], self.bufs[i][2]);
                 }
             }
             Pose {
-                yaw: out[0], pitch: out[1], roll: out[2],
-                x: out[3], y: out[4], z: out[5],
+                yaw: out[0],
+                pitch: out[1],
+                roll: out[2],
+                x: out[3],
+                y: out[4],
+                z: out[5],
                 timestamp_us: pose.timestamp_us,
             }
         }
 
         fn reset(&mut self) {
-            self.idx   = [0; 6];
+            self.idx = [0; 6];
             self.count = [0; 6];
         }
 
@@ -422,9 +464,11 @@ pub mod stages {
 
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             use crate::pose::AXIS_NAMES;
-            AXIS_NAMES.iter().enumerate().map(|(i, &n)| {
-                (n, if self.enabled[i] { 1.0 } else { 0.0 })
-            }).collect()
+            AXIS_NAMES
+                .iter()
+                .enumerate()
+                .map(|(i, &n)| (n, if self.enabled[i] { 1.0 } else { 0.0 }))
+                .collect()
         }
     }
 
@@ -440,7 +484,9 @@ pub mod stages {
     }
 
     impl Default for AxisMaskStage {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl AxisMaskStage {
@@ -457,24 +503,24 @@ pub mod stages {
 
         fn process(&mut self, pose: Pose, _dt: f32) -> Pose {
             Pose {
-                yaw:   if self.active[0] { pose.yaw }   else { 0.0 },
+                yaw: if self.active[0] { pose.yaw } else { 0.0 },
                 pitch: if self.active[1] { pose.pitch } else { 0.0 },
-                roll:  if self.active[2] { pose.roll }  else { 0.0 },
-                x:     if self.active[3] { pose.x }     else { 0.0 },
-                y:     if self.active[4] { pose.y }     else { 0.0 },
-                z:     if self.active[5] { pose.z }     else { 0.0 },
+                roll: if self.active[2] { pose.roll } else { 0.0 },
+                x: if self.active[3] { pose.x } else { 0.0 },
+                y: if self.active[4] { pose.y } else { 0.0 },
+                z: if self.active[5] { pose.z } else { 0.0 },
                 timestamp_us: pose.timestamp_us,
             }
         }
 
         fn set_param(&mut self, param: &str, value: f32) -> bool {
             let idx = match param {
-                "yaw"   => 0,
+                "yaw" => 0,
                 "pitch" => 1,
-                "roll"  => 2,
-                "x"     => 3,
-                "y"     => 4,
-                "z"     => 5,
+                "roll" => 2,
+                "x" => 3,
+                "y" => 4,
+                "z" => 5,
                 _ => return false,
             };
             self.active[idx] = value > 0.5;
@@ -483,9 +529,11 @@ pub mod stages {
 
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             use crate::pose::AXIS_NAMES;
-            AXIS_NAMES.iter().enumerate().map(|(i, &n)| {
-                (n, if self.active[i] { 1.0 } else { 0.0 })
-            }).collect()
+            AXIS_NAMES
+                .iter()
+                .enumerate()
+                .map(|(i, &n)| (n, if self.active[i] { 1.0 } else { 0.0 }))
+                .collect()
         }
     }
 
@@ -629,12 +677,30 @@ pub mod stages {
 
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             const NAMES: [&str; 24] = [
-                "yaw.deadzone", "yaw.smoothing", "yaw.exponent", "yaw.max_gain",
-                "pitch.deadzone", "pitch.smoothing", "pitch.exponent", "pitch.max_gain",
-                "roll.deadzone", "roll.smoothing", "roll.exponent", "roll.max_gain",
-                "x.deadzone", "x.smoothing", "x.exponent", "x.max_gain",
-                "y.deadzone", "y.smoothing", "y.exponent", "y.max_gain",
-                "z.deadzone", "z.smoothing", "z.exponent", "z.max_gain",
+                "yaw.deadzone",
+                "yaw.smoothing",
+                "yaw.exponent",
+                "yaw.max_gain",
+                "pitch.deadzone",
+                "pitch.smoothing",
+                "pitch.exponent",
+                "pitch.max_gain",
+                "roll.deadzone",
+                "roll.smoothing",
+                "roll.exponent",
+                "roll.max_gain",
+                "x.deadzone",
+                "x.smoothing",
+                "x.exponent",
+                "x.max_gain",
+                "y.deadzone",
+                "y.smoothing",
+                "y.exponent",
+                "y.max_gain",
+                "z.deadzone",
+                "z.smoothing",
+                "z.exponent",
+                "z.max_gain",
             ];
             let mut out = Vec::with_capacity(24);
             for i in 0..6 {
@@ -668,20 +734,22 @@ pub mod stages {
     }
 
     impl Default for ResponseCurveStage {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl ResponseCurveStage {
         pub fn new() -> Self {
             Self {
                 //            yaw  pitch roll  x    y    z
-                exponent:    [1.2, 1.2,  1.0,  1.0, 1.0, 1.0],
+                exponent: [1.2, 1.2, 1.0, 1.0, 1.0, 1.0],
                 // Z sensitivity was 1.5 until 2026-08-17. It was measured as
                 // the whole of the Z-rest amplification (the depth cue is
                 // already the noisiest axis; scaling it up amplified the
                 // noise, not the signal), fixed in the tuned profile, and only
                 // now folded back into the default everyone starts from.
-                sensitivity: [1.0, 1.0,  1.0,  1.0, 1.0, 1.0],
+                sensitivity: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             }
         }
 
@@ -690,9 +758,15 @@ pub mod stages {
         /// Accurate to ~0.5% for x in [0, 100] and e in [0.5, 2.0].
         #[inline(always)]
         fn fast_powf(x: f32, e: f32) -> f32 {
-            if x <= 0.0 { return 0.0; }
-            if (e - 1.0).abs() < 0.001 { return x; }
-            if (e - 2.0).abs() < 0.001 { return x * x; }
+            if x <= 0.0 {
+                return 0.0;
+            }
+            if (e - 1.0).abs() < 0.001 {
+                return x;
+            }
+            if (e - 2.0).abs() < 0.001 {
+                return x * x;
+            }
             // x^e ≈ x * (1 + (e-1) * ln(x)), using IEEE 754 fast ln
             let bits = x.to_bits() as i32;
             let ln_approx = (bits - 0x3F80_0000) as f32 * 8.262_958e-8;
@@ -717,8 +791,12 @@ pub mod stages {
                 Self::apply_curve(vals[i], self.exponent[i], self.sensitivity[i])
             });
             Pose {
-                yaw: out[0], pitch: out[1], roll: out[2],
-                x: out[3], y: out[4], z: out[5],
+                yaw: out[0],
+                pitch: out[1],
+                roll: out[2],
+                x: out[3],
+                y: out[4],
+                z: out[5],
                 timestamp_us: pose.timestamp_us,
             }
         }
@@ -733,8 +811,14 @@ pub mod stages {
                     None => return false,
                 };
                 return match field {
-                    "exponent" => { self.exponent[idx] = value.max(0.1); true }
-                    "sensitivity" => { self.sensitivity[idx] = value.max(0.0); true }
+                    "exponent" => {
+                        self.exponent[idx] = value.max(0.1);
+                        true
+                    }
+                    "sensitivity" => {
+                        self.sensitivity[idx] = value.max(0.0);
+                        true
+                    }
                     _ => false,
                 };
             }
@@ -757,16 +841,22 @@ pub mod stages {
 
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             const NAMES: &[&str] = &[
-                "yaw.exponent", "yaw.sensitivity",
-                "pitch.exponent", "pitch.sensitivity",
-                "roll.exponent", "roll.sensitivity",
-                "x.exponent", "x.sensitivity",
-                "y.exponent", "y.sensitivity",
-                "z.exponent", "z.sensitivity",
+                "yaw.exponent",
+                "yaw.sensitivity",
+                "pitch.exponent",
+                "pitch.sensitivity",
+                "roll.exponent",
+                "roll.sensitivity",
+                "x.exponent",
+                "x.sensitivity",
+                "y.exponent",
+                "y.sensitivity",
+                "z.exponent",
+                "z.sensitivity",
             ];
             let mut out = Vec::with_capacity(NAMES.len());
             for i in 0..6 {
-                out.push((NAMES[i * 2],     self.exponent[i]));
+                out.push((NAMES[i * 2], self.exponent[i]));
                 out.push((NAMES[i * 2 + 1], self.sensitivity[i]));
             }
             out
@@ -816,7 +906,9 @@ pub mod stages {
     }
 
     impl Default for CrossAxisCompStage {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl CrossAxisCompStage {
@@ -830,14 +922,14 @@ pub mod stages {
                 yaw_to_x: 0.0,
                 yaw_to_y: 0.0,
                 yaw_to_roll: 0.0,
-                yaw_to_z: 0.0,   // measured per-camera from diagnostic CSV; 0 = disabled
-                pitch_to_y: 1.75,  // nod → eye-centroid rise; measured
+                yaw_to_z: 0.0, // measured per-camera from diagnostic CSV; 0 = disabled
+                pitch_to_y: 1.75, // nod → eye-centroid rise; measured
                 pitch_to_yaw: 0.05, // residual heading pull when looking down/up
-                pitch_to_z: -1.5,   // nod → IPD foreshortening reads as depth
+                pitch_to_z: -1.5, // nod → IPD foreshortening reads as depth
                 z_to_y: 0.0,
                 z_to_pitch: 0.0,
-                roll_to_z: 0.0,  // measured per-camera from diagnostic CSV; 0 = disabled
-                roll_to_x: 0.0,  // measured per-camera from diagnostic CSV; 0 = disabled
+                roll_to_z: 0.0, // measured per-camera from diagnostic CSV; 0 = disabled
+                roll_to_x: 0.0, // measured per-camera from diagnostic CSV; 0 = disabled
                 pivot_mm: 170.0,
             }
         }
@@ -855,7 +947,7 @@ pub mod stages {
             // Geometric offset from neck pivot point (~170mm).
             // When you twist your neck left/right, your face translates slightly sideways and backwards.
             let geo_x = -self.pivot_mm * yaw_rad.sin();
-            let geo_y = self.pivot_mm * 0.15 * yaw_rad.sin().abs(); 
+            let geo_y = self.pivot_mm * 0.15 * yaw_rad.sin().abs();
             let geo_z = self.pivot_mm * (1.0 - yaw_rad.cos());
 
             Pose {
@@ -863,8 +955,16 @@ pub mod stages {
                 pitch: pose.pitch - pose.yaw * self.yaw_to_pitch - pose.z * self.z_to_pitch,
                 roll: pose.roll - pose.yaw * self.yaw_to_roll,
                 x: pose.x - geo_x - pose.yaw * self.yaw_to_x - pose.roll * self.roll_to_x,
-                y: pose.y - geo_y - pose.yaw * self.yaw_to_y - pose.pitch * self.pitch_to_y - pose.z * self.z_to_y,
-                z: pose.z - geo_z - pose.yaw.abs() * self.yaw_to_z - pose.roll.abs() * self.roll_to_z - pose.pitch * self.pitch_to_z,
+                y: pose.y
+                    - geo_y
+                    - pose.yaw * self.yaw_to_y
+                    - pose.pitch * self.pitch_to_y
+                    - pose.z * self.z_to_y,
+                z: pose.z
+                    - geo_z
+                    - pose.yaw.abs() * self.yaw_to_z
+                    - pose.roll.abs() * self.roll_to_z
+                    - pose.pitch * self.pitch_to_z,
                 timestamp_us: pose.timestamp_us,
             }
         }
@@ -873,19 +973,58 @@ pub mod stages {
 
         fn set_param(&mut self, param: &str, value: f32) -> bool {
             match param {
-                "yaw_to_pitch" => { self.yaw_to_pitch = value; true }
-                "yaw_to_x" => { self.yaw_to_x = value; true }
-                "yaw_to_y" => { self.yaw_to_y = value; true }
-                "yaw_to_roll" => { self.yaw_to_roll = value; true }
-                "yaw_to_z" => { self.yaw_to_z = value; true }
-                "pitch_to_y" => { self.pitch_to_y = value; true }
-                "pitch_to_yaw" => { self.pitch_to_yaw = value; true }
-                "pitch_to_z" => { self.pitch_to_z = value; true }
-                "z_to_y" => { self.z_to_y = value; true }
-                "z_to_pitch" => { self.z_to_pitch = value; true }
-                "roll_to_z" => { self.roll_to_z = value; true }
-                "roll_to_x" => { self.roll_to_x = value; true }
-                "pivot_mm" => { self.pivot_mm = value.max(0.0); true }
+                "yaw_to_pitch" => {
+                    self.yaw_to_pitch = value;
+                    true
+                }
+                "yaw_to_x" => {
+                    self.yaw_to_x = value;
+                    true
+                }
+                "yaw_to_y" => {
+                    self.yaw_to_y = value;
+                    true
+                }
+                "yaw_to_roll" => {
+                    self.yaw_to_roll = value;
+                    true
+                }
+                "yaw_to_z" => {
+                    self.yaw_to_z = value;
+                    true
+                }
+                "pitch_to_y" => {
+                    self.pitch_to_y = value;
+                    true
+                }
+                "pitch_to_yaw" => {
+                    self.pitch_to_yaw = value;
+                    true
+                }
+                "pitch_to_z" => {
+                    self.pitch_to_z = value;
+                    true
+                }
+                "z_to_y" => {
+                    self.z_to_y = value;
+                    true
+                }
+                "z_to_pitch" => {
+                    self.z_to_pitch = value;
+                    true
+                }
+                "roll_to_z" => {
+                    self.roll_to_z = value;
+                    true
+                }
+                "roll_to_x" => {
+                    self.roll_to_x = value;
+                    true
+                }
+                "pivot_mm" => {
+                    self.pivot_mm = value.max(0.0);
+                    true
+                }
                 _ => false,
             }
         }
@@ -893,18 +1032,18 @@ pub mod stages {
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             vec![
                 ("yaw_to_pitch", self.yaw_to_pitch),
-                ("yaw_to_x",     self.yaw_to_x),
-                ("yaw_to_y",     self.yaw_to_y),
-                ("yaw_to_roll",  self.yaw_to_roll),
-                ("yaw_to_z",     self.yaw_to_z),
-                ("pitch_to_y",   self.pitch_to_y),
+                ("yaw_to_x", self.yaw_to_x),
+                ("yaw_to_y", self.yaw_to_y),
+                ("yaw_to_roll", self.yaw_to_roll),
+                ("yaw_to_z", self.yaw_to_z),
+                ("pitch_to_y", self.pitch_to_y),
                 ("pitch_to_yaw", self.pitch_to_yaw),
-                ("pitch_to_z",   self.pitch_to_z),
-                ("z_to_y",       self.z_to_y),
-                ("z_to_pitch",   self.z_to_pitch),
-                ("roll_to_z",    self.roll_to_z),
-                ("roll_to_x",    self.roll_to_x),
-                ("pivot_mm",     self.pivot_mm),
+                ("pitch_to_z", self.pitch_to_z),
+                ("z_to_y", self.z_to_y),
+                ("z_to_pitch", self.z_to_pitch),
+                ("roll_to_z", self.roll_to_z),
+                ("roll_to_x", self.roll_to_x),
+                ("pivot_mm", self.pivot_mm),
             ]
         }
     }
@@ -936,7 +1075,9 @@ pub mod stages {
     }
 
     impl Default for SlewLimitStage {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl SlewLimitStage {
@@ -952,7 +1093,7 @@ pub mod stages {
         pub fn new() -> Self {
             Self {
                 //             yaw    pitch  roll   x      y      z
-                max_rate: [500.0,  80.0, 500.0, 300.0, 300.0, 200.0],
+                max_rate: [500.0, 80.0, 500.0, 300.0, 300.0, 200.0],
                 prev: None,
                 dist: crate::pipeline::DistanceScale::NONE.per_axis(),
             }
@@ -988,8 +1129,12 @@ pub mod stages {
             }
 
             let result = Pose {
-                yaw: out[0], pitch: out[1], roll: out[2],
-                x: out[3], y: out[4], z: out[5],
+                yaw: out[0],
+                pitch: out[1],
+                roll: out[2],
+                x: out[3],
+                y: out[4],
+                z: out[5],
                 timestamp_us: pose.timestamp_us,
             };
             self.prev = Some(result);
@@ -1014,10 +1159,18 @@ pub mod stages {
 
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             const NAMES: &[&str] = &[
-                "yaw.max_rate", "pitch.max_rate", "roll.max_rate",
-                "x.max_rate", "y.max_rate", "z.max_rate",
+                "yaw.max_rate",
+                "pitch.max_rate",
+                "roll.max_rate",
+                "x.max_rate",
+                "y.max_rate",
+                "z.max_rate",
             ];
-            NAMES.iter().enumerate().map(|(i, &n)| (n, self.max_rate[i])).collect()
+            NAMES
+                .iter()
+                .enumerate()
+                .map(|(i, &n)| (n, self.max_rate[i]))
+                .collect()
         }
     }
 
@@ -1085,7 +1238,9 @@ pub mod stages {
     }
 
     impl Default for CenterStage {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl CenterStage {
@@ -1194,48 +1349,138 @@ pub mod stages {
 
         fn set_param(&mut self, param: &str, value: f32) -> bool {
             match param {
-                "drift_rate" => { self.drift_rate = value.max(0.0); true }
-                "still_threshold" => { self.still_threshold = value.max(0.0); true }
-                "yaw.drift_mult" => { self.drift_mult[0] = value.max(0.0); true }
-                "pitch.drift_mult" => { self.drift_mult[1] = value.max(0.0); true }
-                "roll.drift_mult" => { self.drift_mult[2] = value.max(0.0); true }
-                "x.drift_mult" => { self.drift_mult[3] = value.max(0.0); true }
-                "y.drift_mult" => { self.drift_mult[4] = value.max(0.0); true }
-                "z.drift_mult" => { self.drift_mult[5] = value.max(0.0); true }
-                "yaw.still_mult"   => { self.still_mult[0] = value.max(0.0); true }
-                "pitch.still_mult" => { self.still_mult[1] = value.max(0.0); true }
-                "roll.still_mult"  => { self.still_mult[2] = value.max(0.0); true }
-                "x.still_mult" => { self.still_mult[3] = value.max(0.0); true }
-                "y.still_mult" => { self.still_mult[4] = value.max(0.0); true }
-                "z.still_mult" => { self.still_mult[5] = value.max(0.0); true }
-                "yaw.recenter_range"   => { self.recenter_range[0] = value.max(0.0); true }
-                "pitch.recenter_range" => { self.recenter_range[1] = value.max(0.0); true }
-                "roll.recenter_range"  => { self.recenter_range[2] = value.max(0.0); true }
-                "x.recenter_range" => { self.recenter_range[3] = value.max(0.0); true }
-                "y.recenter_range" => { self.recenter_range[4] = value.max(0.0); true }
-                "z.recenter_range" => { self.recenter_range[5] = value.max(0.0); true }
-                "yaw.recenter_floor"   => { self.recenter_floor[0] = value.clamp(0.0, 1.0); true }
-                "pitch.recenter_floor" => { self.recenter_floor[1] = value.clamp(0.0, 1.0); true }
-                "roll.recenter_floor"  => { self.recenter_floor[2] = value.clamp(0.0, 1.0); true }
-                "x.recenter_floor" => { self.recenter_floor[3] = value.clamp(0.0, 1.0); true }
-                "y.recenter_floor" => { self.recenter_floor[4] = value.clamp(0.0, 1.0); true }
-                "z.recenter_floor" => { self.recenter_floor[5] = value.clamp(0.0, 1.0); true }
+                "drift_rate" => {
+                    self.drift_rate = value.max(0.0);
+                    true
+                }
+                "still_threshold" => {
+                    self.still_threshold = value.max(0.0);
+                    true
+                }
+                "yaw.drift_mult" => {
+                    self.drift_mult[0] = value.max(0.0);
+                    true
+                }
+                "pitch.drift_mult" => {
+                    self.drift_mult[1] = value.max(0.0);
+                    true
+                }
+                "roll.drift_mult" => {
+                    self.drift_mult[2] = value.max(0.0);
+                    true
+                }
+                "x.drift_mult" => {
+                    self.drift_mult[3] = value.max(0.0);
+                    true
+                }
+                "y.drift_mult" => {
+                    self.drift_mult[4] = value.max(0.0);
+                    true
+                }
+                "z.drift_mult" => {
+                    self.drift_mult[5] = value.max(0.0);
+                    true
+                }
+                "yaw.still_mult" => {
+                    self.still_mult[0] = value.max(0.0);
+                    true
+                }
+                "pitch.still_mult" => {
+                    self.still_mult[1] = value.max(0.0);
+                    true
+                }
+                "roll.still_mult" => {
+                    self.still_mult[2] = value.max(0.0);
+                    true
+                }
+                "x.still_mult" => {
+                    self.still_mult[3] = value.max(0.0);
+                    true
+                }
+                "y.still_mult" => {
+                    self.still_mult[4] = value.max(0.0);
+                    true
+                }
+                "z.still_mult" => {
+                    self.still_mult[5] = value.max(0.0);
+                    true
+                }
+                "yaw.recenter_range" => {
+                    self.recenter_range[0] = value.max(0.0);
+                    true
+                }
+                "pitch.recenter_range" => {
+                    self.recenter_range[1] = value.max(0.0);
+                    true
+                }
+                "roll.recenter_range" => {
+                    self.recenter_range[2] = value.max(0.0);
+                    true
+                }
+                "x.recenter_range" => {
+                    self.recenter_range[3] = value.max(0.0);
+                    true
+                }
+                "y.recenter_range" => {
+                    self.recenter_range[4] = value.max(0.0);
+                    true
+                }
+                "z.recenter_range" => {
+                    self.recenter_range[5] = value.max(0.0);
+                    true
+                }
+                "yaw.recenter_floor" => {
+                    self.recenter_floor[0] = value.clamp(0.0, 1.0);
+                    true
+                }
+                "pitch.recenter_floor" => {
+                    self.recenter_floor[1] = value.clamp(0.0, 1.0);
+                    true
+                }
+                "roll.recenter_floor" => {
+                    self.recenter_floor[2] = value.clamp(0.0, 1.0);
+                    true
+                }
+                "x.recenter_floor" => {
+                    self.recenter_floor[3] = value.clamp(0.0, 1.0);
+                    true
+                }
+                "y.recenter_floor" => {
+                    self.recenter_floor[4] = value.clamp(0.0, 1.0);
+                    true
+                }
+                "z.recenter_floor" => {
+                    self.recenter_floor[5] = value.clamp(0.0, 1.0);
+                    true
+                }
                 _ => false,
             }
         }
 
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             const DRIFT_MULT_NAMES: &[&str] = &[
-                "yaw.drift_mult", "pitch.drift_mult", "roll.drift_mult",
-                "x.drift_mult", "y.drift_mult", "z.drift_mult",
+                "yaw.drift_mult",
+                "pitch.drift_mult",
+                "roll.drift_mult",
+                "x.drift_mult",
+                "y.drift_mult",
+                "z.drift_mult",
             ];
             const STILL_MULT_NAMES: &[&str] = &[
-                "yaw.still_mult", "pitch.still_mult", "roll.still_mult",
-                "x.still_mult", "y.still_mult", "z.still_mult",
+                "yaw.still_mult",
+                "pitch.still_mult",
+                "roll.still_mult",
+                "x.still_mult",
+                "y.still_mult",
+                "z.still_mult",
             ];
             const RECENTER_RANGE_NAMES: &[&str] = &[
-                "yaw.recenter_range", "pitch.recenter_range", "roll.recenter_range",
-                "x.recenter_range", "y.recenter_range", "z.recenter_range",
+                "yaw.recenter_range",
+                "pitch.recenter_range",
+                "roll.recenter_range",
+                "x.recenter_range",
+                "y.recenter_range",
+                "z.recenter_range",
             ];
             let mut out = Vec::with_capacity(
                 2 + DRIFT_MULT_NAMES.len() + STILL_MULT_NAMES.len() + RECENTER_RANGE_NAMES.len(),
@@ -1282,8 +1527,12 @@ pub mod stages {
                 self.baseline_elapsed_s += dt.max(0.0);
                 let m = Self::median_per_axis(&self.baseline_samples);
                 self.baseline = Some(Pose {
-                    yaw: m[0], pitch: m[1], roll: m[2],
-                    x: m[3], y: m[4], z: m[5],
+                    yaw: m[0],
+                    pitch: m[1],
+                    roll: m[2],
+                    x: m[3],
+                    y: m[4],
+                    z: m[5],
                     timestamp_us: pose.timestamp_us,
                 });
             }
@@ -1323,21 +1572,21 @@ pub mod stages {
                 let alpha = (self.drift_rate * dt * self.drift_mult[i] * g).min(1.0);
                 new_b[i] = b_vals[i] + alpha * (vals[i] - b_vals[i]);
             }
-            b.yaw   = new_b[0];
+            b.yaw = new_b[0];
             b.pitch = new_b[1];
-            b.roll  = new_b[2];
-            b.x     = new_b[3];
-            b.y     = new_b[4];
-            b.z     = new_b[5];
+            b.roll = new_b[2];
+            b.x = new_b[3];
+            b.y = new_b[4];
+            b.z = new_b[5];
 
             let b = *b;
             Pose {
-                yaw:          pose.yaw   - b.yaw,
-                pitch:        pose.pitch - b.pitch,
-                roll:         pose.roll  - b.roll,
-                x:            pose.x     - b.x,
-                y:            pose.y     - b.y,
-                z:            pose.z     - b.z,
+                yaw: pose.yaw - b.yaw,
+                pitch: pose.pitch - b.pitch,
+                roll: pose.roll - b.roll,
+                x: pose.x - b.x,
+                y: pose.y - b.y,
+                z: pose.z - b.z,
                 timestamp_us: pose.timestamp_us,
             }
         }
@@ -1351,10 +1600,6 @@ pub mod stages {
             self.baseline_age_s = 0.0;
         }
     }
-
-
-
-
 
     // ── Soft Deadzone ──────────────────────────────────────────────────────
 
@@ -1380,14 +1625,16 @@ pub mod stages {
     }
 
     impl Default for DeadzoneStage {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl DeadzoneStage {
         pub fn new() -> Self {
             Self {
                 //       yaw   pitch  roll   x     y     z
-                dz: [0.8,  0.8,   0.5,  2.0,  2.1, 10.0],
+                dz: [0.8, 0.8, 0.5, 2.0, 2.1, 10.0],
                 dist: crate::pipeline::DistanceScale::NONE.per_axis(),
             }
         }
@@ -1425,24 +1672,24 @@ pub mod stages {
 
         fn process(&mut self, pose: Pose, _dt: f32) -> Pose {
             Pose {
-                yaw:   Self::apply(pose.yaw,   self.dz[0] * self.dist[0]),
+                yaw: Self::apply(pose.yaw, self.dz[0] * self.dist[0]),
                 pitch: Self::apply(pose.pitch, self.dz[1] * self.dist[1]),
-                roll:  Self::apply(pose.roll,  self.dz[2] * self.dist[2]),
-                x:     Self::apply(pose.x,     self.dz[3] * self.dist[3]),
-                y:     Self::apply(pose.y,     self.dz[4] * self.dist[4]),
-                z:     Self::apply(pose.z,     self.dz[5] * self.dist[5]),
+                roll: Self::apply(pose.roll, self.dz[2] * self.dist[2]),
+                x: Self::apply(pose.x, self.dz[3] * self.dist[3]),
+                y: Self::apply(pose.y, self.dz[4] * self.dist[4]),
+                z: Self::apply(pose.z, self.dz[5] * self.dist[5]),
                 timestamp_us: pose.timestamp_us,
             }
         }
 
         fn set_param(&mut self, param: &str, value: f32) -> bool {
             let idx = match param {
-                "yaw"   => Some(0),
+                "yaw" => Some(0),
                 "pitch" => Some(1),
-                "roll"  => Some(2),
-                "x"     => Some(3),
-                "y"     => Some(4),
-                "z"     => Some(5),
+                "roll" => Some(2),
+                "x" => Some(3),
+                "y" => Some(4),
+                "z" => Some(5),
                 _ => None,
             };
             if let Some(i) = idx {
@@ -1455,9 +1702,11 @@ pub mod stages {
 
         fn get_params(&self) -> Vec<(&'static str, f32)> {
             use crate::pose::AXIS_NAMES;
-            AXIS_NAMES.iter().enumerate().map(|(i, &n)| {
-                (n, self.dz[i])
-            }).collect()
+            AXIS_NAMES
+                .iter()
+                .enumerate()
+                .map(|(i, &n)| (n, self.dz[i]))
+                .collect()
         }
     }
 }
@@ -1487,7 +1736,9 @@ mod tests {
     }
 
     fn run(seq: &[Pose], mut pipeline: Pipeline) -> Vec<Pose> {
-        seq.iter().map(|p| pipeline.process(*p, 1.0 / 30.0)).collect()
+        seq.iter()
+            .map(|p| pipeline.process(*p, 1.0 / 30.0))
+            .collect()
     }
 
     fn get_param(params: &[(&str, &str, f32)], stage: &str, param: &str) -> f32 {
@@ -1531,8 +1782,11 @@ mod tests {
         };
 
         for (i, axis) in AXES_TEST.iter().enumerate() {
-            cfg.curve[i].sensitivity =
-                sentinel(&format!("curve[{axis}].sensitivity"), &mut expect, &mut next);
+            cfg.curve[i].sensitivity = sentinel(
+                &format!("curve[{axis}].sensitivity"),
+                &mut expect,
+                &mut next,
+            );
             cfg.curve[i].exponent =
                 sentinel(&format!("curve[{axis}].exponent"), &mut expect, &mut next);
             cfg.accela[i].deadzone =
@@ -1557,7 +1811,6 @@ mod tests {
         cfg.cross_axis.z_to_pitch = sentinel("cross.z_to_pitch", &mut expect, &mut next);
         cfg.cross_axis.roll_to_z = sentinel("cross.roll_to_z", &mut expect, &mut next);
         cfg.cross_axis.roll_to_x = sentinel("cross.roll_to_x", &mut expect, &mut next);
-
 
         cfg.center.drift_rate = sentinel("center.drift_rate", &mut expect, &mut next);
         cfg.center.z_drift_mult = sentinel("center.z_drift_mult", &mut expect, &mut next);
@@ -1658,12 +1911,20 @@ mod tests {
         apply_config(&mut p, &ProfileConfig::tobii_default());
         let seq: Vec<Pose> = motion_sequence()
             .into_iter()
-            .map(|q| Pose { x: 30.0, y: -20.0, pitch: q.pitch * 4.0, ..q })
+            .map(|q| Pose {
+                x: 30.0,
+                y: -20.0,
+                pitch: q.pitch * 4.0,
+                ..q
+            })
             .collect();
         let out = run(&seq, p);
         assert!(out.iter().all(|q| q.x == 0.0 && q.y == 0.0 && q.z == 0.0));
         assert!(out.iter().any(|q| q.yaw.abs() > 1.0), "rotation must pass");
-        assert!(out.iter().any(|q| q.pitch.abs() > 1.0), "rotation must pass");
+        assert!(
+            out.iter().any(|q| q.pitch.abs() > 1.0),
+            "rotation must pass"
+        );
     }
 
     /// P08: the webcam's cross-axis couplings are all off for the Tobii, and
@@ -1689,7 +1950,10 @@ mod tests {
             assert_eq!(value, 0.0, "cross-axis {param} must be 0 for the Tobii");
         }
         for axis in ["x", "y", "z"] {
-            assert_eq!(get_param(&params, "response-curve", &format!("{axis}.sensitivity")), 0.0);
+            assert_eq!(
+                get_param(&params, "response-curve", &format!("{axis}.sensitivity")),
+                0.0
+            );
         }
         assert_eq!(get_param(&params, "center", "drift_rate"), 0.0);
         let d = ProfileConfig::default();
@@ -1749,9 +2013,11 @@ impl StandoffTracker {
     const HYSTERESIS: f32 = 0.08;
 
     pub fn new() -> Self {
-        Self { ema_mm: None, applied_mm: None }
+        Self {
+            ema_mm: None,
+            applied_mm: None,
+        }
     }
-
 
     pub fn current_mm(&self) -> f32 {
         self.ema_mm.unwrap_or(REFERENCE_DISTANCE_MM)
@@ -1794,7 +2060,15 @@ mod distance_scale_tests {
     use crate::pose::Pose;
 
     fn pose(x: f32, y: f32, z: f32) -> Pose {
-        Pose { yaw: 0.0, pitch: 0.0, roll: 0.0, x, y, z, timestamp_us: 0 }
+        Pose {
+            yaw: 0.0,
+            pitch: 0.0,
+            roll: 0.0,
+            x,
+            y,
+            z,
+            timestamp_us: 0,
+        }
     }
 
     /// The exponents are the whole point: depth noise grows with the SQUARE of
@@ -1805,7 +2079,10 @@ mod distance_scale_tests {
         // 1.25x the reference is ~981 mm — inside the trusted band, so this
         // exercises the law rather than the clamp.
         let d = 1.25 * REFERENCE_DISTANCE_MM;
-        assert!(d < MAX_TRUSTED_DISTANCE_MM, "{d} mm would exercise the clamp");
+        assert!(
+            d < MAX_TRUSTED_DISTANCE_MM,
+            "{d} mm would exercise the clamp"
+        );
         let s = DistanceScale::from_standoff_mm(d);
         assert!((s.lateral - 1.25).abs() < 1e-5, "lateral {}", s.lateral);
         assert!((s.depth - 1.5625).abs() < 1e-5, "depth {}", s.depth);
@@ -1933,7 +2210,15 @@ mod recenter_baseline_tests {
     use crate::pose::Pose;
 
     fn p(z: f32) -> Pose {
-        Pose { yaw: 0.0, pitch: 0.0, roll: 0.0, x: 0.0, y: 0.0, z, timestamp_us: 0 }
+        Pose {
+            yaw: 0.0,
+            pitch: 0.0,
+            roll: 0.0,
+            x: 0.0,
+            y: 0.0,
+            z,
+            timestamp_us: 0,
+        }
     }
 
     /// The whole point: a recenter pressed while the depth cue is mid-excursion
@@ -1972,7 +2257,11 @@ mod recenter_baseline_tests {
     fn the_first_frame_after_reset_takes_effect_immediately() {
         let mut c = CenterStage::new();
         let out = c.process(p(-610.0), 1.0 / 60.0);
-        assert!(out.z.abs() < 1e-3, "first frame should read as centre, got {}", out.z);
+        assert!(
+            out.z.abs() < 1e-3,
+            "first frame should read as centre, got {}",
+            out.z
+        );
     }
 
     /// After the window closes the baseline is fixed — a slow genuine lean must
@@ -1984,7 +2273,11 @@ mod recenter_baseline_tests {
             c.process(p(-610.0), 1.0 / 60.0);
         }
         let out = c.process(p(-560.0), 1.0 / 60.0);
-        assert!(out.z > 25.0, "a 50 mm lean after the window must show, got {}", out.z);
+        assert!(
+            out.z > 25.0,
+            "a 50 mm lean after the window must show, got {}",
+            out.z
+        );
     }
 
     /// The window must not swallow the user looking away right after they press.
@@ -2028,7 +2321,11 @@ mod recenter_baseline_tests {
             c.process(p(-610.0), 1.0 / 60.0);
         }
         let out = c.process(p(-560.0), 1.0 / 60.0);
-        assert!(out.z.abs() > 1.0, "baseline still absorbing after age-out: {}", out.z);
+        assert!(
+            out.z.abs() > 1.0,
+            "baseline still absorbing after age-out: {}",
+            out.z
+        );
     }
 
     /// A reset re-arms the window, or the second recenter of a session would
@@ -2047,6 +2344,10 @@ mod recenter_baseline_tests {
             c.process(p(-610.0), 1.0 / 60.0);
         }
         let out = c.process(p(-610.0), 1.0 / 60.0);
-        assert!(out.z.abs() < 25.0, "second recenter did not reject the excursion: {}", out.z);
+        assert!(
+            out.z.abs() < 25.0,
+            "second recenter did not reject the excursion: {}",
+            out.z
+        );
     }
 }

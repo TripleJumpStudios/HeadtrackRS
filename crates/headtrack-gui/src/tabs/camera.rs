@@ -7,13 +7,22 @@ use headtrack_engine::EngineCmd;
 /// Controls worth showing without opening the full driver list. Matched on a
 /// lowercased substring because V4L2 names vary between drivers
 /// ("Exposure, Auto" / "Auto Exposure", "White Balance Temperature", …).
-const COMMON_CONTROLS: [&str; 5] = ["brightness", "contrast", "gain", "exposure", "white balance"];
+const COMMON_CONTROLS: [&str; 5] = [
+    "brightness",
+    "contrast",
+    "gain",
+    "exposure",
+    "white balance",
+];
 
 /// The line `Optimise for tracking` leaves under its button, for `applied`
 /// controls set.
 pub(crate) fn optimise_message(applied: usize) -> String {
     match applied {
-        0 => format!("{}  No exposure controls found on this camera.", ph::WARNING),
+        0 => format!(
+            "{}  No exposure controls found on this camera.",
+            ph::WARNING
+        ),
         1 => format!(
             "{}  Manual exposure on (1 control set). Raise Gain if the picture is dark.",
             ph::CHECK
@@ -22,44 +31,6 @@ pub(crate) fn optimise_message(applied: usize) -> String {
             "{}  Manual exposure on ({n} controls set). Raise Gain if the picture is dark.",
             ph::CHECK
         ),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{control_label, optimise_message};
-
-    #[test]
-    fn v4l2_names_read_like_words() {
-        for (raw, want) in [
-            ("White Balance, Automatic", "Auto white balance"),
-            ("White Balance Temperature, Auto", "Auto white balance"),
-            ("White Balance Temperature", "White balance temperature"),
-            ("Exposure Time, Absolute", "Exposure time"),
-            ("Exposure (Absolute)", "Exposure"),
-            ("Exposure, Dynamic Framerate", "Low-light frame-rate drop"),
-            ("Auto Exposure", "Exposure mode"),
-            ("Focus, Automatic Continuous", "Autofocus"),
-            ("Focus, Absolute", "Focus"),
-            ("Gain, Automatic", "Auto gain"),
-            ("Power Line Frequency", "Anti-flicker"),
-            ("Backlight Compensation", "Backlight compensation"),
-            ("Brightness", "Brightness"),
-            ("Pan, Relative", "Pan (relative)"),
-            ("LED1 Mode", "LED1 mode"),
-            ("User Controls", "Image"),
-            ("Camera Controls", "Camera"),
-            ("", ""),
-        ] {
-            assert_eq!(control_label(raw), want, "{raw:?}");
-        }
-    }
-
-    #[test]
-    fn the_optimise_line_counts_in_english() {
-        assert!(optimise_message(1).contains("(1 control set)"), "{}", optimise_message(1));
-        assert!(optimise_message(2).contains("(2 controls set)"));
-        assert!(optimise_message(0).contains("No exposure controls"));
     }
 }
 
@@ -143,7 +114,10 @@ impl HeadtrackApp {
             width,
             |ui| {
                 for (i, (w, h, label)) in CAMERA_RESOLUTIONS.iter().enumerate() {
-                    if ui.selectable_label(self.camera_res_idx == i, *label).clicked() {
+                    if ui
+                        .selectable_label(self.camera_res_idx == i, *label)
+                        .clicked()
+                    {
                         self.camera_res_idx = i;
                         self.cmd.send(EngineCmd::SetResolution {
                             width: *w,
@@ -335,8 +309,13 @@ impl HeadtrackApp {
     }
 
     fn ui_camera_optimize(&mut self, ui: &mut egui::Ui) {
-        if ui::tool_button(ui, ph::LIGHTNING, "Optimise for tracking", ui::ButtonKind::Primary)
-            .clicked()
+        if ui::tool_button(
+            ui,
+            ph::LIGHTNING,
+            "Optimise for tracking",
+            ui::ButtonKind::Primary,
+        )
+        .clicked()
         {
             self.apply_tracking_optimisation();
         }
@@ -449,7 +428,11 @@ fn ui_v4l2_control_widget(
     avail: f32,
 ) {
     let Ok(val) = dev.control(desc.id) else {
-        ui.label(egui::RichText::new("\u{2014}").size(colors::TEXT_BODY).color(colors::DIMMER));
+        ui.label(
+            egui::RichText::new("\u{2014}")
+                .size(colors::TEXT_BODY)
+                .color(colors::DIMMER),
+        );
         return;
     };
 
@@ -501,20 +484,26 @@ fn ui_v4l2_control_widget(
                         .find(|(idx, _)| *idx as i64 == current)
                         .map(|(_, item)| menu_item_name(item))
                         .unwrap_or_else(|| format!("{current}"));
-                    ui::combo(ui, desc.id, &label, (avail - 20.0).clamp(120.0, 240.0), |ui| {
-                        for (idx, item) in items {
-                            let name = menu_item_name(item);
-                            if ui
-                                .selectable_value(&mut current, *idx as i64, &name)
-                                .changed()
-                            {
-                                let _ = dev.set_control(v4l::control::Control {
-                                    id: desc.id,
-                                    value: v4l::control::Value::Integer(current),
-                                });
+                    ui::combo(
+                        ui,
+                        desc.id,
+                        &label,
+                        (avail - 20.0).clamp(120.0, 240.0),
+                        |ui| {
+                            for (idx, item) in items {
+                                let name = menu_item_name(item);
+                                if ui
+                                    .selectable_value(&mut current, *idx as i64, &name)
+                                    .changed()
+                                {
+                                    let _ = dev.set_control(v4l::control::Control {
+                                        id: desc.id,
+                                        value: v4l::control::Value::Integer(current),
+                                    });
+                                }
                             }
-                        }
-                    });
+                        },
+                    );
                 }
             }
         }
@@ -535,7 +524,9 @@ pub(crate) fn control_label(raw: &str) -> String {
         "user controls" => Some("Image"),
         "camera controls" => Some("Camera"),
         "auto exposure" | "exposure, auto" => Some("Exposure mode"),
-        "exposure, dynamic framerate" | "exposure, auto priority" => Some("Low-light frame-rate drop"),
+        "exposure, dynamic framerate" | "exposure, auto priority" => {
+            Some("Low-light frame-rate drop")
+        }
         "power line frequency" => Some("Anti-flicker"),
         "white balance temperature, auto" => Some("Auto white balance"),
         "focus, automatic continuous" | "focus, auto" => Some("Autofocus"),
@@ -592,5 +583,51 @@ fn menu_item_name(item: &v4l::control::MenuItem) -> String {
 
 /// The label above a control in a narrow column — a label, never a sentence.
 fn field_label(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).size(colors::TEXT_BODY).color(colors::DIM));
+    ui.label(
+        egui::RichText::new(text)
+            .size(colors::TEXT_BODY)
+            .color(colors::DIM),
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{control_label, optimise_message};
+
+    #[test]
+    fn v4l2_names_read_like_words() {
+        for (raw, want) in [
+            ("White Balance, Automatic", "Auto white balance"),
+            ("White Balance Temperature, Auto", "Auto white balance"),
+            ("White Balance Temperature", "White balance temperature"),
+            ("Exposure Time, Absolute", "Exposure time"),
+            ("Exposure (Absolute)", "Exposure"),
+            ("Exposure, Dynamic Framerate", "Low-light frame-rate drop"),
+            ("Auto Exposure", "Exposure mode"),
+            ("Focus, Automatic Continuous", "Autofocus"),
+            ("Focus, Absolute", "Focus"),
+            ("Gain, Automatic", "Auto gain"),
+            ("Power Line Frequency", "Anti-flicker"),
+            ("Backlight Compensation", "Backlight compensation"),
+            ("Brightness", "Brightness"),
+            ("Pan, Relative", "Pan (relative)"),
+            ("LED1 Mode", "LED1 mode"),
+            ("User Controls", "Image"),
+            ("Camera Controls", "Camera"),
+            ("", ""),
+        ] {
+            assert_eq!(control_label(raw), want, "{raw:?}");
+        }
+    }
+
+    #[test]
+    fn the_optimise_line_counts_in_english() {
+        assert!(
+            optimise_message(1).contains("(1 control set)"),
+            "{}",
+            optimise_message(1)
+        );
+        assert!(optimise_message(2).contains("(2 controls set)"));
+        assert!(optimise_message(0).contains("No exposure controls"));
+    }
 }

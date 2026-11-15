@@ -16,7 +16,11 @@ use egui::{Color32, CornerRadius, RichText, Stroke};
 pub fn activity(ui: &mut egui::Ui, label: &str) {
     ui.horizontal(|ui| {
         ui.add(egui::Spinner::new().size(16.0).color(theme::ORANGE));
-        ui.label(RichText::new(label).size(theme::TEXT_BODY).color(theme::TEXT));
+        ui.label(
+            RichText::new(label)
+                .size(theme::TEXT_BODY)
+                .color(theme::TEXT),
+        );
     });
 }
 
@@ -52,10 +56,22 @@ pub fn icon_text(icon_glyph: &str, text: &str, fg: Color32) -> egui::text::Layou
         ..Default::default()
     };
     if icon_glyph.is_empty() {
-        job.append(text, 0.0, fmt(egui::FontId::new(theme::TEXT_BODY, theme::semibold())));
+        job.append(
+            text,
+            0.0,
+            fmt(egui::FontId::new(theme::TEXT_BODY, theme::semibold())),
+        );
     } else {
-        job.append(icon_glyph, 0.0, fmt(egui::FontId::new(15.0, theme::icons())));
-        job.append(text, 8.0, fmt(egui::FontId::new(theme::TEXT_BODY, theme::semibold())));
+        job.append(
+            icon_glyph,
+            0.0,
+            fmt(egui::FontId::new(15.0, theme::icons())),
+        );
+        job.append(
+            text,
+            8.0,
+            fmt(egui::FontId::new(theme::TEXT_BODY, theme::semibold())),
+        );
     }
     job
 }
@@ -95,7 +111,9 @@ pub fn tool_button_enabled(
 /// height and radius — a different shape from every other button.
 pub fn action_icon(ui: &mut egui::Ui, glyph: &str, label: &str) -> egui::Response {
     let response = icon_button(ui, glyph, ButtonKind::Ghost).on_hover_text(label);
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
+    });
     response
 }
 
@@ -226,7 +244,11 @@ pub fn toggle_chip(ui: &mut egui::Ui, text: &str, on: bool, color: Color32) -> e
             color,
         )
     } else {
-        (theme::WELL, Stroke::new(1.0_f32, theme::STROKE_SOFT), theme::DIM)
+        (
+            theme::WELL,
+            Stroke::new(1.0_f32, theme::STROKE_SOFT),
+            theme::DIM,
+        )
     };
     let response = ui.add(
         egui::Button::new(RichText::new(text).color(fg))
@@ -262,15 +284,23 @@ pub fn toggle_row(ui: &mut egui::Ui, label: &str, on: &mut bool) -> egui::Respon
 /// Segmented-control button — the Tuning group selector.
 pub fn segment(ui: &mut egui::Ui, text: &str, active: bool) -> egui::Response {
     let response = ui.add(
-        egui::Button::new(RichText::new(text).color(if active { Color32::WHITE } else { theme::DIM }))
-            .fill(if active { theme::ORANGE_DIM } else { Color32::TRANSPARENT })
-            .stroke(if active {
-                Stroke::new(1.0_f32, theme::ORANGE.gamma_multiply(0.6))
-            } else {
-                Stroke::NONE
-            })
-            .corner_radius(CornerRadius::same(7))
-            .min_size(egui::vec2(0.0, 28.0)),
+        egui::Button::new(RichText::new(text).color(if active {
+            Color32::WHITE
+        } else {
+            theme::DIM
+        }))
+        .fill(if active {
+            theme::ORANGE_DIM
+        } else {
+            Color32::TRANSPARENT
+        })
+        .stroke(if active {
+            Stroke::new(1.0_f32, theme::ORANGE.gamma_multiply(0.6))
+        } else {
+            Stroke::NONE
+        })
+        .corner_radius(CornerRadius::same(7))
+        .min_size(egui::vec2(0.0, 28.0)),
     );
     focus_outline(ui, &response);
     response
@@ -333,7 +363,11 @@ pub fn param_cell(
     let mut changed = false;
     ui.vertical(|ui| {
         ui.set_width(cell_w);
-        ui.label(RichText::new(label).size(theme::TEXT_BODY).color(theme::DIM));
+        ui.label(
+            RichText::new(label)
+                .size(theme::TEXT_BODY)
+                .color(theme::DIM),
+        );
         ui.add_space(1.0);
         ui.horizontal(|ui| {
             // The value box is a fixed slot, and its text is the 15 px button
@@ -375,8 +409,7 @@ pub fn param_row(ui: &mut egui::Ui, cells: usize, add: impl FnOnce(&mut egui::Ui
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = PARAM_GAP;
         // Two px of slack per cell: egui rounds widget rects to whole pixels.
-        ui.spacing_mut().slider_width =
-            (cell - PARAM_GAP - PARAM_VALUE_W - 2.0).clamp(40.0, 240.0);
+        ui.spacing_mut().slider_width = (cell - PARAM_GAP - PARAM_VALUE_W - 2.0).clamp(40.0, 240.0);
         add(ui);
     });
     ui.add_space(4.0);
@@ -402,11 +435,16 @@ pub enum Step {
 pub fn icon_button(ui: &mut egui::Ui, glyph: &str, kind: ButtonKind) -> egui::Response {
     let (fill, stroke, fg) = button_skin(kind);
     let response = ui.add(
-        egui::Button::new(RichText::new(glyph).family(theme::icons()).size(15.0).color(fg))
-            .fill(fill)
-            .stroke(stroke)
-            .corner_radius(CornerRadius::same(theme::CONTROL_RADIUS))
-            .min_size(egui::vec2(theme::CONTROL_H, theme::CONTROL_H)),
+        egui::Button::new(
+            RichText::new(glyph)
+                .family(theme::icons())
+                .size(15.0)
+                .color(fg),
+        )
+        .fill(fill)
+        .stroke(stroke)
+        .corner_radius(CornerRadius::same(theme::CONTROL_RADIUS))
+        .min_size(egui::vec2(theme::CONTROL_H, theme::CONTROL_H)),
     );
     focus_outline(ui, &response);
     response
@@ -438,11 +476,15 @@ pub fn stepper(ui: &mut egui::Ui, middle: impl FnOnce(&mut egui::Ui)) -> Option<
 fn step_button(ui: &mut egui::Ui, glyph: &str) -> egui::Response {
     let (fill, stroke, fg) = button_skin(ButtonKind::Normal);
     let response = ui.add(
-        egui::Button::new(RichText::new(glyph).font(egui::FontId::new(15.0, theme::semibold())).color(fg))
-            .fill(fill)
-            .stroke(stroke)
-            .corner_radius(CornerRadius::same(theme::CONTROL_RADIUS))
-            .min_size(egui::vec2(theme::CONTROL_H, theme::CONTROL_H)),
+        egui::Button::new(
+            RichText::new(glyph)
+                .font(egui::FontId::new(15.0, theme::semibold()))
+                .color(fg),
+        )
+        .fill(fill)
+        .stroke(stroke)
+        .corner_radius(CornerRadius::same(theme::CONTROL_RADIUS))
+        .min_size(egui::vec2(theme::CONTROL_H, theme::CONTROL_H)),
     );
     focus_outline(ui, &response);
     response
@@ -493,7 +535,9 @@ pub fn path_field(
     let mut response = ui.add_sized(egui::vec2(width, theme::CONTROL_H), edit);
     if let Some(shown) = elided {
         response = response.on_hover_text(text.as_str());
-        let inner = response.rect.shrink2(egui::vec2(f32::from(MARGIN.left), 0.0));
+        let inner = response
+            .rect
+            .shrink2(egui::vec2(f32::from(MARGIN.left), 0.0));
         ui.painter_at(response.rect).text(
             inner.left_center(),
             egui::Align2::LEFT_CENTER,
@@ -510,7 +554,11 @@ pub fn path_field(
 fn button_skin(kind: ButtonKind) -> (Color32, Stroke, Color32) {
     match kind {
         ButtonKind::Primary => (theme::ORANGE, Stroke::NONE, theme::BG),
-        ButtonKind::Normal => (theme::PANEL_HI, Stroke::new(1.0_f32, theme::STROKE), theme::TEXT),
+        ButtonKind::Normal => (
+            theme::PANEL_HI,
+            Stroke::new(1.0_f32, theme::STROKE),
+            theme::TEXT,
+        ),
         ButtonKind::Ghost => (Color32::TRANSPARENT, Stroke::NONE, theme::DIM),
         ButtonKind::GhostActive => (
             theme::ORANGE.gamma_multiply(0.12),
@@ -577,7 +625,8 @@ mod tests {
         let rect = RefCell::new(egui::Rect::NOTHING);
         frame(|ui| {
             ui.horizontal(|ui| {
-                let long = "Logitech BRIO 4K Stream Edition with a long V4L2 card name (/dev/video0)";
+                let long =
+                    "Logitech BRIO 4K Stream Edition with a long V4L2 card name (/dev/video0)";
                 *rect.borrow_mut() = combo(ui, "long-label", long, 220.0, |_| {}).rect;
             });
         });
@@ -595,15 +644,21 @@ mod tests {
             theme::install(&ctx);
             let cell = RefCell::new(egui::Rect::NOTHING);
             let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 200.0))),
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(600.0, 200.0),
+                )),
                 ..Default::default()
             };
             let out = ctx.run(input, |ctx| {
-                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
-                    let mut v = v0;
-                    let r = ui.scope(|ui| param_cell(ui, "Centre stability", &mut v, 0.0..=1.0, 2));
-                    *cell.borrow_mut() = r.response.rect;
-                });
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ctx, |ui| {
+                        let mut v = v0;
+                        let r =
+                            ui.scope(|ui| param_cell(ui, "Centre stability", &mut v, 0.0..=1.0, 2));
+                        *cell.borrow_mut() = r.response.rect;
+                    });
             });
             let cell = cell.into_inner();
             let hover = ctx.style().visuals.widgets.hovered;
@@ -622,7 +677,8 @@ mod tests {
             for c in circles {
                 let reach = c.radius + hover.expansion + hover.fg_stroke.width / 2.0;
                 assert!(
-                    c.center.x - reach >= cell.left() - 0.01 && c.center.x + reach <= cell.right() + 0.01,
+                    c.center.x - reach >= cell.left() - 0.01
+                        && c.center.x + reach <= cell.right() + 0.01,
                     "value {v0}: knob {:.1}..{:.1} outside cell {:.1}..{:.1}",
                     c.center.x - reach,
                     c.center.x + reach,
@@ -652,7 +708,10 @@ mod tests {
                 *seen.borrow_mut() = (ui.min_rect().right() - left, avail);
             });
             let (used, avail) = seen.into_inner();
-            assert!(used <= avail + 0.5, "at {width}: row used {used:.1} of {avail:.1} px");
+            assert!(
+                used <= avail + 0.5,
+                "at {width}: row used {used:.1} of {avail:.1} px"
+            );
         }
     }
 }

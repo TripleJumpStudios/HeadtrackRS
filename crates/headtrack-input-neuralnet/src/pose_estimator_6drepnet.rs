@@ -24,9 +24,9 @@ pub const MODEL_FILENAME: &str = "head-pose-mobilenetv3-large.onnx";
 /// Just rotation — translation comes from the legacy estimator.
 #[derive(Debug, Clone, Copy)]
 pub struct HeadRotation {
-    pub yaw:   f32,
+    pub yaw: f32,
     pub pitch: f32,
-    pub roll:  f32,
+    pub roll: f32,
 }
 
 /// Wraps the MobileNetV3-Large 6DRepNet-style ONNX session.
@@ -60,7 +60,11 @@ impl PoseEstimator6DRepNet {
 
         debug!("6DRepNet model input: {input_w}×{input_h}");
 
-        Ok(Self { session, input_w, input_h })
+        Ok(Self {
+            session,
+            input_w,
+            input_h,
+        })
     }
 
     /// Run the rotation estimator on the same square crop the legacy estimator
@@ -120,9 +124,15 @@ fn rotation_matrix_to_yaw_pitch_roll(r: &[f32]) -> HeadRotation {
     //   pitch = atan2( R[2,1], R[2,2])   if !singular else atan2(-R[1,2], R[1,1])
     //   yaw   = atan2(-R[2,0], sy)
     //   roll  = atan2( R[1,0], R[0,0])   if !singular else 0
-    let r00 = r[0]; let r01 = r[1]; let r02 = r[2];
-    let r10 = r[3]; let r11 = r[4]; let r12 = r[5];
-    let r20 = r[6]; let r21 = r[7]; let r22 = r[8];
+    let r00 = r[0];
+    let r01 = r[1];
+    let r02 = r[2];
+    let r10 = r[3];
+    let r11 = r[4];
+    let r12 = r[5];
+    let r20 = r[6];
+    let r21 = r[7];
+    let r22 = r[8];
 
     let sy = (r00 * r00 + r10 * r10).sqrt();
     let singular = sy < 1e-6;
@@ -146,13 +156,13 @@ fn rotation_matrix_to_yaw_pitch_roll(r: &[f32]) -> HeadRotation {
     //
     // The yakhyo MobileNetV3-Large output produces +roll for left-tilt; we
     // negate to match our canonical (right-tilt = +).
-    const PITCH_SIGN: f32 =  1.0;
-    const YAW_SIGN:   f32 =  1.0;
-    const ROLL_SIGN:  f32 = -1.0;
+    const PITCH_SIGN: f32 = 1.0;
+    const YAW_SIGN: f32 = 1.0;
+    const ROLL_SIGN: f32 = -1.0;
 
     HeadRotation {
-        yaw:   YAW_SIGN   * yaw_rad   * to_deg,
+        yaw: YAW_SIGN * yaw_rad * to_deg,
         pitch: PITCH_SIGN * pitch_rad * to_deg,
-        roll:  ROLL_SIGN  * roll_rad  * to_deg,
+        roll: ROLL_SIGN * roll_rad * to_deg,
     }
 }

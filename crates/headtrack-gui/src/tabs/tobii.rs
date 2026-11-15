@@ -167,9 +167,7 @@ pub(crate) fn state_tone(state: TobiiState) -> ui::Tone {
 /// What the user should know or do, per state.
 fn state_guidance(state: TobiiState) -> &'static str {
     match state {
-        TobiiState::NoDevice => {
-            "Plug in the Tobii Eye Tracker 5; it is picked up when it appears."
-        }
+        TobiiState::NoDevice => "Plug in the Tobii Eye Tracker 5; it is picked up when it appears.",
         TobiiState::PermissionDenied => {
             "Linux will not open the tracker until a USB rule is installed; setup asks for \
              your password once."
@@ -205,7 +203,11 @@ impl HeadtrackApp {
         if let Some(status) = &self.fake_tobii {
             return status.clone();
         }
-        self.state.tobii.lock().map(|s| s.clone()).unwrap_or_default()
+        self.state
+            .tobii
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or_default()
     }
 
     /// Once per frame: when the head source kind changes, the engine has
@@ -239,7 +241,10 @@ impl HeadtrackApp {
                 let status = self.tobii_status();
                 let (label, tone) = status_label(&status);
                 let running = connected || self.fake_tobii.is_some();
-                if running && status.state == TobiiState::Streaming && status.neutral_progress.is_none() {
+                if running
+                    && status.state == TobiiState::Streaming
+                    && status.neutral_progress.is_none()
+                {
                     Ok(())
                 } else if running {
                     Err((format!("Tobii: {}", label.to_lowercase()), tone))
@@ -279,10 +284,15 @@ impl HeadtrackApp {
                 ui::state(ui, "Not in use", ui::Tone::Idle);
             }
         });
-        ui::subtitle(ui, "Head rotation only; translation is not available with Tobii.");
+        ui::subtitle(
+            ui,
+            "Head rotation only; translation is not available with Tobii.",
+        );
 
         ui::two_columns(ui, "tobii-row", ui::Split::Even, |c| {
-            c.group(Some("Device"), |ui| self.ui_tobii_device(ui, active, &status));
+            c.group(Some("Device"), |ui| {
+                self.ui_tobii_device(ui, active, &status)
+            });
             c.group(Some("Head source"), |ui| self.ui_tobii_source(ui, active));
         });
 
@@ -291,7 +301,11 @@ impl HeadtrackApp {
         // moves with the pose the sims get. Gaze sits beside it when shown.
         let prompt = if active { tobii_prompt(&status) } else { None };
         let streaming = active && status.state == TobiiState::Streaming && prompt.is_none();
-        let pose = *self.state.latest_pose.lock().unwrap_or_else(|e| e.into_inner());
+        let pose = *self
+            .state
+            .latest_pose
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let rotation = streaming.then_some([pose.yaw, pose.pitch, pose.roll]);
         if SHOW_GAZE {
             ui::two_columns(ui, "tobii-live", ui::Split::Even, |c| {
@@ -301,7 +315,11 @@ impl HeadtrackApp {
                     draw_head_box(ui, rotation, prompt);
                 });
                 c.group(Some("Gaze"), |ui| {
-                    ui::note(ui, "Gaze is shown here only; it is never sent to a sim.", colors::DIM);
+                    ui::note(
+                        ui,
+                        "Gaze is shown here only; it is never sent to a sim.",
+                        colors::DIM,
+                    );
                     ui.add_space(8.0);
                     let gaze = if active { status.gaze } else { None };
                     draw_gaze_box(ui, gaze);
@@ -321,13 +339,21 @@ impl HeadtrackApp {
 
     fn ui_tobii_device(&mut self, ui: &mut egui::Ui, active: bool, status: &TobiiStatus) {
         if !headtrack_engine::TOBII_SUPPORTED && self.fake_tobii.is_none() {
-            ui::note(ui, "This build of HeadtrackRS has no Tobii support.", colors::DIM);
+            ui::note(
+                ui,
+                "This build of HeadtrackRS has no Tobii support.",
+                colors::DIM,
+            );
             return;
         }
         if !active {
             // The status is only live while the Tobii is the source; when it is
             // not, the device is closed and its last state means nothing.
-            ui::note(ui, "Closed while the webcam is the head source.", colors::DIM);
+            ui::note(
+                ui,
+                "Closed while the webcam is the head source.",
+                colors::DIM,
+            );
             return;
         }
 
@@ -351,7 +377,8 @@ impl HeadtrackApp {
         ui::kv_row(ui, "Last sample", |ui| mono(ui, &age));
 
         ui.add_space(6.0);
-        let guidance = if status.state == TobiiState::Streaming && status.neutral_progress.is_some() {
+        let guidance = if status.state == TobiiState::Streaming && status.neutral_progress.is_some()
+        {
             // Taking the neutral: the stream is up but nothing is tracked yet.
             "Hold still, facing the screen; tracking starts when that is your straight ahead."
         } else {
@@ -407,12 +434,18 @@ impl HeadtrackApp {
             (_, true) => "Install the rule again",
             _ => "Set up USB access",
         };
-        let clicked = ui::tool_button_enabled(ui, !running, ph::SHIELD_CHECK, label, ui::ButtonKind::Primary)
-            .on_hover_text(format!(
-                "Installs one udev rule at {RULE_PATH} so your user can open the tracker. \
+        let clicked = ui::tool_button_enabled(
+            ui,
+            !running,
+            ph::SHIELD_CHECK,
+            label,
+            ui::ButtonKind::Primary,
+        )
+        .on_hover_text(format!(
+            "Installs one udev rule at {RULE_PATH} so your user can open the tracker. \
                  Asks for your password once."
-            ))
-            .clicked();
+        ))
+        .clicked();
         // The screenshot fixture never runs pkexec, whatever is clicked.
         if clicked && self.fake_tobii.is_none() {
             self.tobii_setup.start();
@@ -420,7 +453,8 @@ impl HeadtrackApp {
         if running {
             ui.add_space(6.0);
             ui::activity(ui, "Waiting for your password\u{2026}");
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(250));
         }
         if !note.is_empty() {
             ui.add_space(6.0);
@@ -430,7 +464,9 @@ impl HeadtrackApp {
 
     fn ui_tobii_source(&mut self, ui: &mut egui::Ui, active: bool) {
         let supported = headtrack_engine::TOBII_SUPPORTED || self.fake_tobii.is_some();
-        ui::kv_row(ui, "In use", |ui| mono(ui, if active { "Tobii" } else { "Webcam" }));
+        ui::kv_row(ui, "In use", |ui| {
+            mono(ui, if active { "Tobii" } else { "Webcam" })
+        });
         let text = if active {
             "Drives yaw, pitch and roll; X, Y and Z are held at zero."
         } else {
@@ -447,8 +483,12 @@ impl HeadtrackApp {
                 {
                     self.trigger_recenter();
                 }
-                if ui::tool_button(ui, ph::CAMERA, "Use the webcam", ui::ButtonKind::Ghost).clicked() {
-                    self.cmd.send(EngineCmd::SwitchSourceKind { kind: SourceKind::Webcam });
+                if ui::tool_button(ui, ph::CAMERA, "Use the webcam", ui::ButtonKind::Ghost)
+                    .clicked()
+                {
+                    self.cmd.send(EngineCmd::SwitchSourceKind {
+                        kind: SourceKind::Webcam,
+                    });
                 }
             } else if ui::tool_button_enabled(
                 ui,
@@ -459,7 +499,9 @@ impl HeadtrackApp {
             )
             .clicked()
             {
-                self.cmd.send(EngineCmd::SwitchSourceKind { kind: SourceKind::Tobii });
+                self.cmd.send(EngineCmd::SwitchSourceKind {
+                    kind: SourceKind::Tobii,
+                });
             }
         });
     }
@@ -582,7 +624,10 @@ mod tests {
         assert_eq!(fake_tobii_state("Streaming"), None);
         assert_eq!(fake_tobii_state(""), None);
         let n = fake_tobii_status("neutral").expect("neutral fixture");
-        assert_eq!((n.state, n.neutral_progress), (TobiiState::Streaming, Some(0.4)));
+        assert_eq!(
+            (n.state, n.neutral_progress),
+            (TobiiState::Streaming, Some(0.4))
+        );
     }
 
     /// D1/D2: every state that is not tracking yet tells the user what to do,
@@ -590,13 +635,23 @@ mod tests {
     #[test]
     fn the_prompt_covers_starting_and_the_neutral_only() {
         use ui::SourcePrompt as P;
-        assert_eq!(tobii_prompt(&fake_status(TobiiState::Opening)), Some(P::Starting));
+        assert_eq!(
+            tobii_prompt(&fake_status(TobiiState::Opening)),
+            Some(P::Starting)
+        );
         assert_eq!(
             tobii_prompt(&fake_neutral_status(0.25)),
-            Some(P::HoldStill { progress: 0.25, seconds_left: 1.5 })
+            Some(P::HoldStill {
+                progress: 0.25,
+                seconds_left: 1.5
+            })
         );
         let mut no_face = fake_status(TobiiState::NoFace);
-        assert_eq!(tobii_prompt(&no_face), None, "after the neutral: tracking, face lost");
+        assert_eq!(
+            tobii_prompt(&no_face),
+            None,
+            "after the neutral: tracking, face lost"
+        );
         no_face.neutral_progress = Some(0.0);
         assert_eq!(tobii_prompt(&no_face), Some(P::FaceTracker));
         for s in [
@@ -608,17 +663,29 @@ mod tests {
         ] {
             assert_eq!(tobii_prompt(&fake_status(s)), None, "{s:?}");
         }
-        assert_eq!(status_label(&fake_neutral_status(0.5)), ("Hold still", ui::Tone::Warn));
-        assert_eq!(status_label(&fake_status(TobiiState::Streaming)).0, "Tracking");
+        assert_eq!(
+            status_label(&fake_neutral_status(0.5)),
+            ("Hold still", ui::Tone::Warn)
+        );
+        assert_eq!(
+            status_label(&fake_status(TobiiState::Streaming)).0,
+            "Tracking"
+        );
     }
 
     #[test]
     fn reset_restores_each_sources_own_builtin() {
-        assert_eq!(builtin_profile(SourceKind::Webcam).name, ProfileConfig::default().name);
+        assert_eq!(
+            builtin_profile(SourceKind::Webcam).name,
+            ProfileConfig::default().name
+        );
         let t = builtin_profile(SourceKind::Tobii);
         assert_eq!(t.name, ProfileConfig::TOBII_DEFAULT_NAME);
         for i in 3..6 {
-            assert_eq!(t.curve[i].sensitivity, 0.0, "Tobii translation must stay off");
+            assert_eq!(
+                t.curve[i].sensitivity, 0.0,
+                "Tobii translation must stay off"
+            );
         }
     }
 

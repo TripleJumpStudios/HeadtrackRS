@@ -211,11 +211,26 @@ fn font_definitions() -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
 
     for (name, bytes) in [
-        ("Inter", &include_bytes!("../../../../assets/fonts/Inter-Regular.ttf")[..]),
-        ("InterSemiBold", &include_bytes!("../../../../assets/fonts/Inter-SemiBold.ttf")[..]),
-        ("JetBrainsMono", &include_bytes!("../../../../assets/fonts/JetBrainsMono-Regular.ttf")[..]),
-        ("JetBrainsMonoBold", &include_bytes!("../../../../assets/fonts/JetBrainsMono-Bold.ttf")[..]),
-        ("NotoSansSemiBold", &include_bytes!("../../../../assets/fonts/NotoSans-SemiBold.ttf")[..]),
+        (
+            "Inter",
+            &include_bytes!("../../../../assets/fonts/Inter-Regular.ttf")[..],
+        ),
+        (
+            "InterSemiBold",
+            &include_bytes!("../../../../assets/fonts/Inter-SemiBold.ttf")[..],
+        ),
+        (
+            "JetBrainsMono",
+            &include_bytes!("../../../../assets/fonts/JetBrainsMono-Regular.ttf")[..],
+        ),
+        (
+            "JetBrainsMonoBold",
+            &include_bytes!("../../../../assets/fonts/JetBrainsMono-Bold.ttf")[..],
+        ),
+        (
+            "NotoSansSemiBold",
+            &include_bytes!("../../../../assets/fonts/NotoSans-SemiBold.ttf")[..],
+        ),
     ] {
         fonts
             .font_data
@@ -275,13 +290,27 @@ fn font_definitions() -> egui::FontDefinitions {
 /// Takes the style rather than the context so it can be asserted on directly,
 /// and so `all_styles_mut` can run it once per theme.
 fn install_style(style: &mut egui::Style) {
-    style.text_styles.insert(TextStyle::Heading, FontId::new(24.0, semibold()));
-    style.text_styles.insert(TextStyle::Body, FontId::proportional(TEXT_MD));
-    style.text_styles.insert(TextStyle::Button, FontId::new(TEXT_MD, semibold()));
-    style.text_styles.insert(TextStyle::Small, FontId::proportional(TEXT_SM));
-    style.text_styles.insert(TextStyle::Monospace, FontId::monospace(13.0));
-    style.text_styles.insert(eyebrow_style(), FontId::monospace(11.0));
-    style.text_styles.insert(telemetry_style(), FontId::new(15.0, mono_bold()));
+    style
+        .text_styles
+        .insert(TextStyle::Heading, FontId::new(24.0, semibold()));
+    style
+        .text_styles
+        .insert(TextStyle::Body, FontId::proportional(TEXT_MD));
+    style
+        .text_styles
+        .insert(TextStyle::Button, FontId::new(TEXT_MD, semibold()));
+    style
+        .text_styles
+        .insert(TextStyle::Small, FontId::proportional(TEXT_SM));
+    style
+        .text_styles
+        .insert(TextStyle::Monospace, FontId::monospace(13.0));
+    style
+        .text_styles
+        .insert(eyebrow_style(), FontId::monospace(11.0));
+    style
+        .text_styles
+        .insert(telemetry_style(), FontId::new(15.0, mono_bold()));
 
     let v = &mut style.visuals;
     v.dark_mode = true;
@@ -415,7 +444,11 @@ mod tests {
         ] {
             assert!(bytes.len() > 10_000, "font file suspiciously small");
             // TrueType outlines start with the 0x00010000 sfnt version tag.
-            assert_eq!(&bytes[..4], &[0x00, 0x01, 0x00, 0x00], "not a TrueType font");
+            assert_eq!(
+                &bytes[..4],
+                &[0x00, 0x01, 0x00, 0x00],
+                "not a TrueType font"
+            );
         }
     }
 
@@ -441,7 +474,10 @@ mod tests {
     fn global_widget_radius_is_four() {
         let mut style = egui::Style::default();
         install_style(&mut style);
-        assert_eq!(style.visuals.widgets.inactive.corner_radius, CornerRadius::same(4));
+        assert_eq!(
+            style.visuals.widgets.inactive.corner_radius,
+            CornerRadius::same(4)
+        );
     }
 
     /// The five sizes are a strict ladder; two equal rungs would let a heading
@@ -450,6 +486,10 @@ mod tests {
     fn the_type_scale_is_five_ascending_sizes() {
         let scale = [TEXT_SM, TEXT_BODY, TEXT_MD, TEXT_LG, TEXT_XL];
         assert!(scale.windows(2).all(|w| w[0] < w[1]), "{scale:?}");
-        assert_eq!(scale, [13.0, 14.0, 15.0, 17.0, 19.0], "shared with HangarRS's theme.rs");
+        assert_eq!(
+            scale,
+            [13.0, 14.0, 15.0, 17.0, 19.0],
+            "shared with HangarRS's theme.rs"
+        );
     }
 }

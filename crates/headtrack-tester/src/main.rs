@@ -24,14 +24,14 @@ use tokio::sync::mpsc;
 
 // ── Display parameters ────────────────────────────────────────────────────────
 
-const ROT_MAX: f32 = 30.0;    // ±30° full-scale for rotation bars
-const TRANS_MAX: f32 = 60.0;  // ±60mm full-scale for translation bars
-const BAR_HALF: usize = 20;   // half-width of bar (total = 2*BAR_HALF+1)
+const ROT_MAX: f32 = 30.0; // ±30° full-scale for rotation bars
+const TRANS_MAX: f32 = 60.0; // ±60mm full-scale for translation bars
+const BAR_HALF: usize = 20; // half-width of bar (total = 2*BAR_HALF+1)
 
-const NAMES: [&str; 6]     = ["Yaw", "Pitch", "Roll", "X", "Y", "Z"];
-const UNITS: [&str; 6]     = ["°", "°", "°", "mm", "mm", "mm"];
-const MAXES: [f32; 6]      = [ROT_MAX, ROT_MAX, ROT_MAX, TRANS_MAX, TRANS_MAX, TRANS_MAX];
-const HINTS: [&str; 6]     = [
+const NAMES: [&str; 6] = ["Yaw", "Pitch", "Roll", "X", "Y", "Z"];
+const UNITS: [&str; 6] = ["°", "°", "°", "mm", "mm", "mm"];
+const MAXES: [f32; 6] = [ROT_MAX, ROT_MAX, ROT_MAX, TRANS_MAX, TRANS_MAX, TRANS_MAX];
+const HINTS: [&str; 6] = [
     "turn right = +",
     "tilt up = +",
     "tilt right = +",
@@ -76,8 +76,12 @@ impl Stats {
     fn update(&mut self, p: Pose) {
         let vals = pose_vals(&p);
         for (i, &v) in vals.iter().enumerate() {
-            if v < self.min[i] { self.min[i] = v; }
-            if v > self.max[i] { self.max[i] = v; }
+            if v < self.min[i] {
+                self.min[i] = v;
+            }
+            if v > self.max[i] {
+                self.max[i] = v;
+            }
         }
         self.frames += 1;
         self.fps_frames += 1;
@@ -112,10 +116,14 @@ fn bar(value: f32, max: f32) -> String {
     let pos = pos.clamp(0, (total - 1) as isize) as usize;
 
     if pos > BAR_HALF {
-        for b in &mut buf[(BAR_HALF + 1)..=pos] { *b = b'-'; }
+        for b in &mut buf[(BAR_HALF + 1)..=pos] {
+            *b = b'-';
+        }
         buf[pos] = b'*';
     } else if pos < BAR_HALF {
-        for b in &mut buf[pos..BAR_HALF] { *b = b'-'; }
+        for b in &mut buf[pos..BAR_HALF] {
+            *b = b'-';
+        }
         buf[pos] = b'*';
     } else {
         buf[BAR_HALF] = b'*';
@@ -140,14 +148,30 @@ const GUIDE_STEPS: usize = 4;
 /// Per-step: (instruction, expected_axis_idx, expected_sign_positive, axis_mask)
 /// axis_mask: which axes to consider for dominance (true = include)
 const GUIDE_INSTRUCTIONS: [(&str, usize, bool, [bool; 6]); GUIDE_STEPS] = [
-    ("Turn head RIGHT (like saying 'no')",
-        0, true,  [true,  true,  true,  false, false, false]),
-    ("Tilt head UP (nose toward ceiling)",
-        1, true,  [true,  true,  true,  false, false, false]),
-    ("Tilt head RIGHT (right ear toward shoulder)",
-        2, true,  [true,  true,  true,  false, false, false]),
-    ("Lean toward screen (move head forward)",
-        5, true,  [false, false, false, true,  true,  true]),
+    (
+        "Turn head RIGHT (like saying 'no')",
+        0,
+        true,
+        [true, true, true, false, false, false],
+    ),
+    (
+        "Tilt head UP (nose toward ceiling)",
+        1,
+        true,
+        [true, true, true, false, false, false],
+    ),
+    (
+        "Tilt head RIGHT (right ear toward shoulder)",
+        2,
+        true,
+        [true, true, true, false, false, false],
+    ),
+    (
+        "Lean toward screen (move head forward)",
+        5,
+        true,
+        [false, false, false, true, true, true],
+    ),
 ];
 
 enum GuideState {
@@ -176,11 +200,21 @@ impl GuideState {
 
     /// Feed a pose; returns `Some(result)` when a recording step completes.
     fn feed(&mut self, p: Pose) -> Option<GuideResult> {
-        if let GuideState::Recording { start, min, max, step } = self {
+        if let GuideState::Recording {
+            start,
+            min,
+            max,
+            step,
+        } = self
+        {
             let vals = pose_vals(&p);
             for (i, &v) in vals.iter().enumerate() {
-                if v < min[i] { min[i] = v; }
-                if v > max[i] { max[i] = v; }
+                if v < min[i] {
+                    min[i] = v;
+                }
+                if v > max[i] {
+                    max[i] = v;
+                }
             }
             if start.elapsed() >= Duration::from_secs(3) {
                 let step = *step;
@@ -200,7 +234,12 @@ impl GuideState {
                 } else {
                     GuideState::Done
                 };
-                return Some(GuideResult { step, dominant: dom, positive, peaks });
+                return Some(GuideResult {
+                    step,
+                    dominant: dom,
+                    positive,
+                    peaks,
+                });
             }
         }
         None
@@ -229,7 +268,8 @@ fn push_spotlight(out: &mut String, stats: &Stats) {
             POS_MOVE[dom].to_string()
         } else {
             POS_MOVE[dom]
-                .replace("RIGHT", "LEFT").replace("UP", "DOWN")
+                .replace("RIGHT", "LEFT")
+                .replace("UP", "DOWN")
                 .replace("right", "left")
                 .replace("toward", "away from")
         };
@@ -245,7 +285,11 @@ fn push_spotlight(out: &mut String, stats: &Stats) {
 fn push_axis_table(out: &mut String, stats: &Stats) {
     out.push_str(&format!(
         "  {:<6}  {:>8}  {:<width$}  {:>6} {:>6}   hint\x1B[K\n",
-        "axis", "value", "  -max←0→+max  ", "min", "max",
+        "axis",
+        "value",
+        "  -max←0→+max  ",
+        "min",
+        "max",
         width = BAR_HALF * 2 + 3,
     ));
     out.push_str("  ──────────────────────────────────────────────────────────────────\x1B[K\n");
@@ -255,16 +299,30 @@ fn push_axis_table(out: &mut String, stats: &Stats) {
         let dom = dominant_idx(&vals);
         for i in 0..6 {
             let b = bar(vals[i], MAXES[i]);
-            let min_s = if stats.min[i].is_infinite() { "   ---".into() } else { format!("{:+6.1}", stats.min[i]) };
-            let max_s = if stats.max[i].is_infinite() { "   ---".into() } else { format!("{:+6.1}", stats.max[i]) };
-            let (bold, rst) = if i == dom { ("\x1B[1m", "\x1B[0m") } else { ("", "") };
+            let min_s = if stats.min[i].is_infinite() {
+                "   ---".into()
+            } else {
+                format!("{:+6.1}", stats.min[i])
+            };
+            let max_s = if stats.max[i].is_infinite() {
+                "   ---".into()
+            } else {
+                format!("{:+6.1}", stats.max[i])
+            };
+            let (bold, rst) = if i == dom {
+                ("\x1B[1m", "\x1B[0m")
+            } else {
+                ("", "")
+            };
             out.push_str(&format!(
                 "  {}{:<6}  {:>+7.2}{:<2}  {}  {}  {}   {}{}\x1B[K\n",
                 bold, NAMES[i], vals[i], UNITS[i], b, min_s, max_s, HINTS[i], rst
             ));
         }
     } else {
-        for _ in 0..6 { out.push_str("  ---\x1B[K\n"); }
+        for _ in 0..6 {
+            out.push_str("  ---\x1B[K\n");
+        }
     }
 }
 
@@ -272,8 +330,15 @@ fn render_live(stats: &Stats, connected: bool, frozen: bool) {
     let mut out = String::with_capacity(2048);
     out.push_str("\x1B[H");
 
-    let freeze_indicator = if frozen { "  \x1B[7m FROZEN \x1B[0m" } else { "" };
-    out.push_str(&format!("  headtrack-rs pose tester{}\x1B[K\n", freeze_indicator));
+    let freeze_indicator = if frozen {
+        "  \x1B[7m FROZEN \x1B[0m"
+    } else {
+        ""
+    };
+    out.push_str(&format!(
+        "  headtrack-rs pose tester{}\x1B[K\n",
+        freeze_indicator
+    ));
     out.push_str("  keys:  r=recenter  c=clear  f=freeze  g=guided test  q=quit\x1B[K\n");
     out.push_str("  \x1B[K\n");
 
@@ -282,7 +347,11 @@ fn render_live(stats: &Stats, connected: bool, frozen: bool) {
     push_axis_table(&mut out, stats);
 
     out.push_str("  \x1B[K\n");
-    let status = if connected { "connected" } else { "DISCONNECTED — retrying…" };
+    let status = if connected {
+        "connected"
+    } else {
+        "DISCONNECTED — retrying…"
+    };
     out.push_str(&format!(
         "  Status: {}   frames: {}   rate: {:.0} Hz\x1B[K\n",
         status, stats.frames, stats.fps
@@ -304,7 +373,11 @@ fn render_guided(guide: &GuideState, results: &[GuideResult]) {
         let sign_str = if r.positive { "+" } else { "-" };
         let got = format!("{}{}", sign_str, NAMES[r.dominant]);
         let ok = r.dominant == expected_idx && r.positive == expected_pos;
-        let mark = if ok { "\x1B[32m✓\x1B[0m" } else { "\x1B[31m✗\x1B[0m" };
+        let mark = if ok {
+            "\x1B[32m✓\x1B[0m"
+        } else {
+            "\x1B[31m✗\x1B[0m"
+        };
         // Show peak values for all 6 axes
         let peaks_str: String = (0..6)
             .map(|i| format!("{}:{:+.1}{}", NAMES[i], r.peaks[i], UNITS[i]))
@@ -323,10 +396,14 @@ fn render_guided(guide: &GuideState, results: &[GuideResult]) {
             out.push_str("  \x1B[K\n");
             out.push_str(&format!(
                 "  Step {}/{}: \x1B[1m{}\x1B[0m\x1B[K\n",
-                step + 1, GUIDE_STEPS, inst
+                step + 1,
+                GUIDE_STEPS,
+                inst
             ));
             out.push_str("  \x1B[K\n");
-            out.push_str("  Press SPACE to begin 3-second recording, then do the movement.\x1B[K\n");
+            out.push_str(
+                "  Press SPACE to begin 3-second recording, then do the movement.\x1B[K\n",
+            );
             out.push_str("  Return to neutral BEFORE pressing SPACE.\x1B[K\n");
         }
         GuideState::Recording { step, start, .. } => {
@@ -336,11 +413,17 @@ fn render_guided(guide: &GuideState, results: &[GuideResult]) {
             let bar_str: String = "█".repeat(bar_len) + &" ".repeat(30 - bar_len.min(30));
             out.push_str("  \x1B[K\n");
             out.push_str(&format!("  \x1B[1mNOW: {}\x1B[0m\x1B[K\n", inst));
-            out.push_str(&format!("  [{}] {:.1}s\x1B[K\n", bar_str, remaining.max(0.0)));
+            out.push_str(&format!(
+                "  [{}] {:.1}s\x1B[K\n",
+                bar_str,
+                remaining.max(0.0)
+            ));
         }
         GuideState::Done => {
             out.push_str("  \x1B[K\n");
-            out.push_str("  \x1B[1mTest complete!\x1B[0m  Press SPACE or q to return to live view.\x1B[K\n");
+            out.push_str(
+                "  \x1B[1mTest complete!\x1B[0m  Press SPACE or q to return to live view.\x1B[K\n",
+            );
         }
     }
     out.push_str("\x1B[J");
@@ -484,9 +567,9 @@ async fn run_dump(path: &str) -> Result<()> {
 
 /// Process a single key press. Returns `true` if the caller should break the main loop.
 fn handle_key(
-    key:    KeyCode,
-    guide:  &mut Option<(GuideState, Vec<GuideResult>)>,
-    stats:  &mut Stats,
+    key: KeyCode,
+    guide: &mut Option<(GuideState, Vec<GuideResult>)>,
+    stats: &mut Stats,
     frozen: &mut bool,
 ) -> bool {
     match key {
@@ -517,7 +600,9 @@ fn handle_key(
                         stats.clear_minmax();
                         gs.start_recording();
                     }
-                    GuideState::Done => { *guide = None; }
+                    GuideState::Done => {
+                        *guide = None;
+                    }
                     _ => {}
                 }
             }
@@ -534,7 +619,10 @@ async fn main() -> Result<()> {
     // Check for --dump mode before starting TUI.
     let args: Vec<String> = std::env::args().collect();
     if let Some(pos) = args.iter().position(|a| a == "--dump") {
-        let path = args.get(pos + 1).map(|s| s.as_str()).unwrap_or("headtrack-dump.csv");
+        let path = args
+            .get(pos + 1)
+            .map(|s| s.as_str())
+            .unwrap_or("headtrack-dump.csv");
         return run_dump(path).await;
     }
 
@@ -545,14 +633,13 @@ async fn main() -> Result<()> {
     io::stdout().flush()?;
 
     let (key_tx, mut key_rx) = mpsc::channel::<KeyCode>(16);
-    tokio::task::spawn_blocking(move || {
-        loop {
-            if event::poll(Duration::from_millis(50)).unwrap_or(false) {
-                if let Ok(Event::Key(k)) = event::read() {
-                    let _ = key_tx.blocking_send(k.code);
-                    if matches!(k.code, KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL)) {
-                        break;
-                    }
+    tokio::task::spawn_blocking(move || loop {
+        if event::poll(Duration::from_millis(50)).unwrap_or(false) {
+            if let Ok(Event::Key(k)) = event::read() {
+                let _ = key_tx.blocking_send(k.code);
+                if matches!(k.code, KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL))
+                {
+                    break;
                 }
             }
         }
@@ -569,7 +656,10 @@ async fn main() -> Result<()> {
         if client.is_none() {
             render_live(&stats, false, frozen);
             match headtrack_ipc::client::IpcClient::connect(&socket_path).await {
-                Ok(c) => { client = Some(c); connected = true; }
+                Ok(c) => {
+                    client = Some(c);
+                    connected = true;
+                }
                 Err(_) => {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     continue;

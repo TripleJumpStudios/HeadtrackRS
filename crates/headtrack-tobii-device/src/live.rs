@@ -66,7 +66,10 @@ struct CounterLog {
 }
 impl CounterLog {
     fn new(now_us: u64) -> Self {
-        Self { last_us: now_us, last: Stats::default() }
+        Self {
+            last_us: now_us,
+            last: Stats::default(),
+        }
     }
     /// Returns per-interval deltas `(gaze, valid_gaze, malformed, images)` once at least one
     /// second has passed since the previous report, else `None`.
@@ -180,10 +183,8 @@ impl Service {
                                 device.stats.gaze, device.stats.valid_gaze, device.stats.malformed, device.stats.images
                             );
                         }
-                        state.image_fps = image_rate.update(
-                            device.stats.images,
-                            clock.elapsed().as_micros() as u64,
-                        );
+                        state.image_fps = image_rate
+                            .update(device.stats.images, clock.elapsed().as_micros() as u64);
                         publish(&state);
                     }
                     Ok(())
@@ -255,7 +256,13 @@ mod counter_log_tests {
     #[test]
     fn reports_deltas_once_per_second() {
         let mut log = CounterLog::new(0);
-        let mut s = Stats { gaze: 100, valid_gaze: 0, malformed: 3, images: 20, ..Default::default() };
+        let mut s = Stats {
+            gaze: 100,
+            valid_gaze: 0,
+            malformed: 3,
+            images: 20,
+            ..Default::default()
+        };
         assert_eq!(log.due(999_999, &s), None);
         assert_eq!(log.due(1_000_000, &s), Some([100, 0, 3, 20]));
         assert_eq!(log.due(1_500_000, &s), None);

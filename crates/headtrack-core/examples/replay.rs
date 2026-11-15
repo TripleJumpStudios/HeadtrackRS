@@ -76,9 +76,9 @@ fn main() -> std::io::Result<()> {
                 apply_config(&mut pipeline, &cfg);
                 eprintln!("replay: applied profile '{}' from {p}", cfg.name);
             }
-            Err(e) => eprintln!(
-                "warning: could not load profile '{p}' ({e}); using built-in defaults"
-            ),
+            Err(e) => {
+                eprintln!("warning: could not load profile '{p}' ({e}); using built-in defaults")
+            }
         },
         None => eprintln!("replay: no --profile — using built-in default pipeline"),
     }
@@ -117,7 +117,11 @@ fn main() -> std::io::Result<()> {
             continue;
         }
         let f: Vec<&str> = line.split(',').collect();
-        let get = |i: usize| f.get(i).and_then(|s| s.trim().parse::<f32>().ok()).unwrap_or(0.0);
+        let get = |i: usize| {
+            f.get(i)
+                .and_then(|s| s.trim().parse::<f32>().ok())
+                .unwrap_or(0.0)
+        };
 
         let ts = ci_ts
             .and_then(|i| f.get(i))

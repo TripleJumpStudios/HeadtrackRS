@@ -23,17 +23,17 @@ pub mod shell;
 pub mod theme;
 
 pub use controls::{
-    action_icon, activity, combo, disclosure, icon_button, icon_text, param_cell, param_row, param_span, path_field,
-    segment, state, stepper, text_field, toggle_chip, toggle_row, tool_button,
-    tool_button_enabled, ButtonKind, Step, Tone,
+    action_icon, activity, combo, disclosure, icon_button, icon_text, param_cell, param_row,
+    param_span, path_field, segment, state, stepper, text_field, toggle_chip, toggle_row,
+    tool_button, tool_button_enabled, ButtonKind, Step, Tone,
 };
 pub use gauge::{
     axis_gauge, draw_bar, draw_curve_editor, draw_pose_bubble, hud_overlay, paint_pose_bubble,
     source_prompt, SourcePrompt,
 };
 pub use layout::{
-    group, group_rule, heading, kv_row, note, page_header, path_label, section,
-    subheading, subtitle, two_columns, Split, ROW_GAP,
+    group, group_rule, heading, kv_row, note, page_header, path_label, section, subheading,
+    subtitle, two_columns, Split, ROW_GAP,
 };
 
 use eframe::egui::{self, Color32};
@@ -147,6 +147,9 @@ mod signed_tests {
     use super::signed;
 
     #[test]
+    // `0.0 * -1.0` is kept on purpose: it is negative zero *computed*, the way
+    // it reaches `signed` in use; clippy's `-0.0` would repeat the first line.
+    #[allow(clippy::neg_multiply)]
     fn negative_zero_and_values_that_round_to_it_have_no_sign() {
         assert_eq!(signed(-0.0, 1), "0.0");
         assert_eq!(signed(0.0, 1), "0.0");

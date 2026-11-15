@@ -186,11 +186,17 @@ pub fn paint_pose_bubble(
     let (cx, cy) = (rect.center().x, rect.center().y);
     let cross = Stroke::new(1.0_f32, theme::STROKE_SOFT);
     painter.line_segment(
-        [egui::pos2(rect.left() + 8.0, cy), egui::pos2(rect.right() - 8.0, cy)],
+        [
+            egui::pos2(rect.left() + 8.0, cy),
+            egui::pos2(rect.right() - 8.0, cy),
+        ],
         cross,
     );
     painter.line_segment(
-        [egui::pos2(cx, rect.top() + 8.0), egui::pos2(cx, rect.bottom() - 8.0)],
+        [
+            egui::pos2(cx, rect.top() + 8.0),
+            egui::pos2(cx, rect.bottom() - 8.0),
+        ],
         cross,
     );
 
@@ -216,7 +222,10 @@ pub fn paint_pose_bubble(
             egui::pos2(bx + radius * a.cos(), by + radius * a.sin())
         })
         .collect();
-    painter.add(egui::Shape::line(arc, Stroke::new(3.5_f32, super::axis_color(2))));
+    painter.add(egui::Shape::line(
+        arc,
+        Stroke::new(3.5_f32, super::axis_color(2)),
+    ));
 
     // Axis names spelled out: a bare `Y` here meant yaw, beside `Z` the
     // translation axis, and `Y` is the translation axis everywhere else (4b).
@@ -233,7 +242,9 @@ pub fn paint_pose_bubble(
         Some(z) => {
             let one_line = format!("{rot}  Z {}mm", super::signed(z, 0));
             let fits = ui.fonts(|f| {
-                f.layout_no_wrap(one_line.clone(), font.clone(), theme::DIM).rect.width()
+                f.layout_no_wrap(one_line.clone(), font.clone(), theme::DIM)
+                    .rect
+                    .width()
             }) <= width - 16.0;
             if fits {
                 one_line
@@ -266,8 +277,10 @@ pub fn draw_curve_editor(
 
     // Left pad fits a five-character tick label ("400mm") at TEXT_SM monospace.
     let (lpad, rpad, bpad, tpad) = (46.0, 14.0, 20.0, 8.0);
-    let (rect, _) =
-        ui.allocate_exact_size(egui::vec2(width, height + bpad + tpad), egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(width, height + bpad + tpad),
+        egui::Sense::hover(),
+    );
     let painter = ui.painter_at(rect);
 
     let chart = Rect::from_min_max(
@@ -347,7 +360,10 @@ pub fn draw_curve_editor(
         painter.add(egui::Shape::line(pts, Stroke::new(2.0_f32, color)));
 
         let lx = live_input.abs().clamp(0.0, max_x);
-        let pos = egui::pos2(to_sx(lx), to_sy(sens * lx.powf(exp)).clamp(chart.top(), chart.bottom()));
+        let pos = egui::pos2(
+            to_sx(lx),
+            to_sy(sens * lx.powf(exp)).clamp(chart.top(), chart.bottom()),
+        );
         painter.circle_filled(pos, 5.0, color);
         painter.circle_stroke(pos, 5.0, Stroke::new(1.5_f32, Color32::WHITE));
     }
@@ -375,14 +391,8 @@ pub fn hud_overlay(painter: &egui::Painter, rect: Rect, locked: bool, caption: O
         (rect.right_bottom(), -1.0, -1.0),
     ] {
         let origin = egui::pos2(corner.x + dx * inset, corner.y + dy * inset);
-        painter.line_segment(
-            [origin, egui::pos2(origin.x + dx * arm, origin.y)],
-            stroke,
-        );
-        painter.line_segment(
-            [origin, egui::pos2(origin.x, origin.y + dy * arm)],
-            stroke,
-        );
+        painter.line_segment([origin, egui::pos2(origin.x + dx * arm, origin.y)], stroke);
+        painter.line_segment([origin, egui::pos2(origin.x, origin.y + dy * arm)], stroke);
     }
 
     if !locked {
@@ -431,7 +441,9 @@ impl SourcePrompt {
     pub fn words(self) -> (&'static str, &'static str) {
         match self {
             SourcePrompt::Starting => ("Starting the tracker", "Sit facing the screen"),
-            SourcePrompt::HoldStill { .. } => ("Hold still", "Face the screen until the ring fills"),
+            SourcePrompt::HoldStill { .. } => {
+                ("Hold still", "Face the screen until the ring fills")
+            }
             SourcePrompt::FaceTracker => ("Face the tracker", "No face in view yet"),
         }
     }
@@ -461,7 +473,9 @@ pub fn source_prompt(ui: &egui::Ui, painter: &egui::Painter, rect: Rect, prompt:
     let track = Stroke::new(4.0_f32, theme::ORANGE_DIM.gamma_multiply(0.6));
     painter.circle_stroke(c, r, track);
     let arc = |from: f32, sweep: f32| {
-        let n = ((sweep.abs() / std::f32::consts::TAU) * 64.0).ceil().max(2.0) as usize;
+        let n = ((sweep.abs() / std::f32::consts::TAU) * 64.0)
+            .ceil()
+            .max(2.0) as usize;
         (0..=n)
             .map(|i| {
                 let a = from + sweep * i as f32 / n as f32;
@@ -474,9 +488,15 @@ pub fn source_prompt(ui: &egui::Ui, painter: &egui::Painter, rect: Rect, prompt:
     match prompt {
         SourcePrompt::Starting => {
             let t = ui.input(|i| i.time) as f32;
-            painter.add(egui::Shape::line(arc(up + t * 4.0, std::f32::consts::FRAC_PI_2), lit));
+            painter.add(egui::Shape::line(
+                arc(up + t * 4.0, std::f32::consts::FRAC_PI_2),
+                lit,
+            ));
         }
-        SourcePrompt::HoldStill { progress, seconds_left } => {
+        SourcePrompt::HoldStill {
+            progress,
+            seconds_left,
+        } => {
             let p = progress.clamp(0.0, 1.0);
             if p > 0.0 {
                 painter.add(egui::Shape::line(arc(up, p * std::f32::consts::TAU), lit));
@@ -516,7 +536,8 @@ pub fn source_prompt(ui: &egui::Ui, painter: &egui::Painter, rect: Rect, prompt:
         FontId::proportional(sub),
         theme::DIM,
     );
-    ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+    ui.ctx()
+        .request_repaint_after(std::time::Duration::from_millis(33));
 }
 
 #[cfg(test)]

@@ -54,8 +54,7 @@ pub type XPLMFlightLoop_f = unsafe extern "C" fn(
 
 #[allow(non_camel_case_types)]
 /// Plugins menu handler signature.
-pub type XPLMMenuHandler_f =
-    unsafe extern "C" fn(menu_ref: *mut c_void, item_ref: *mut c_void);
+pub type XPLMMenuHandler_f = unsafe extern "C" fn(menu_ref: *mut c_void, item_ref: *mut c_void);
 
 #[allow(non_camel_case_types)]
 /// Command handler signature.
@@ -93,8 +92,13 @@ pub const XPLM_FONT_PROPORTIONAL: i32 = 18;
 #[allow(non_camel_case_types)]
 pub type XPLMDrawWindow_f = unsafe extern "C" fn(window: XPLMWindowID, refcon: *mut c_void);
 #[allow(non_camel_case_types)]
-pub type XPLMHandleMouseClick_f =
-    unsafe extern "C" fn(window: XPLMWindowID, x: i32, y: i32, mouse: i32, refcon: *mut c_void) -> i32;
+pub type XPLMHandleMouseClick_f = unsafe extern "C" fn(
+    window: XPLMWindowID,
+    x: i32,
+    y: i32,
+    mouse: i32,
+    refcon: *mut c_void,
+) -> i32;
 #[allow(non_camel_case_types)]
 pub type XPLMHandleKey_f = unsafe extern "C" fn(
     window: XPLMWindowID,
@@ -108,8 +112,14 @@ pub type XPLMHandleKey_f = unsafe extern "C" fn(
 pub type XPLMHandleCursor_f =
     unsafe extern "C" fn(window: XPLMWindowID, x: i32, y: i32, refcon: *mut c_void) -> i32;
 #[allow(non_camel_case_types)]
-pub type XPLMHandleMouseWheel_f =
-    unsafe extern "C" fn(window: XPLMWindowID, x: i32, y: i32, wheel: i32, clicks: i32, refcon: *mut c_void) -> i32;
+pub type XPLMHandleMouseWheel_f = unsafe extern "C" fn(
+    window: XPLMWindowID,
+    x: i32,
+    y: i32,
+    wheel: i32,
+    clicks: i32,
+    refcon: *mut c_void,
+) -> i32;
 
 /// Mirrors `XPLMCreateWindow_t` from the current X-Plane SDK (XPLM400).
 /// Field order and `structSize` must match the SDK exactly or the sim crashes.
@@ -160,10 +170,7 @@ extern "C" {
         interval: f32,
         refcon: *mut c_void,
     );
-    pub fn XPLMUnregisterFlightLoopCallback(
-        callback: XPLMFlightLoop_f,
-        refcon: *mut c_void,
-    );
+    pub fn XPLMUnregisterFlightLoopCallback(callback: XPLMFlightLoop_f, refcon: *mut c_void);
 
     // Menus
     pub fn XPLMFindPluginsMenu() -> XPLMMenuID;

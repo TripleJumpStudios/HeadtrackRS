@@ -71,7 +71,10 @@ pub(crate) mod protocol;
 
 use headtrack_core::Pose;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, atomic::{AtomicBool, AtomicU32, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU32, Ordering},
+    Arc,
+};
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
 use tracing::{debug, info, warn};
@@ -98,9 +101,9 @@ const CAMERA_IGNORE_FIELD: f64 = f32::MAX as f64;
 /// - Heading (yaw): pass-through
 fn pose_to_camera(pose: &Pose) -> ([f64; 3], [f32; 3]) {
     let position = [
-        ( pose.x as f64) / 1000.0,
-        ( pose.y as f64) / 1000.0,
-        ( pose.z as f64) / 1000.0,
+        (pose.x as f64) / 1000.0,
+        (pose.y as f64) / 1000.0,
+        (pose.z as f64) / 1000.0,
     ];
     // PBH is { Pitch, Bank, Heading } per SimConnect.h.
     let pbh = [-pose.pitch, -pose.roll, pose.yaw];
@@ -163,7 +166,11 @@ enum GetPurpose {
 /// wrap-aware (359° vs 1° = 2°, not 358°).
 fn angle_delta_deg(a: f32, b: f32) -> f32 {
     let d = (a - b).abs() % 360.0;
-    if d > 180.0 { 360.0 - d } else { d }
+    if d > 180.0 {
+        360.0 - d
+    } else {
+        d
+    }
 }
 
 /// Per-frame adapter trace (instrument I2), enabled by setting
@@ -175,7 +182,7 @@ fn angle_delta_deg(a: f32, b: f32) -> f32 {
 /// flushed as written; diagnostic use only.
 struct TraceWriter {
     writer: std::io::BufWriter<std::fs::File>,
-    start:  Instant,
+    start: Instant,
 }
 
 impl TraceWriter {
@@ -191,7 +198,10 @@ impl TraceWriter {
                       sent_x,sent_y,sent_z,sent_p,sent_b,sent_h\n",
                 );
                 info!("HEADTRACK_MSFS_TRACE — per-frame adapter trace -> {path}");
-                Some(Self { writer, start: Instant::now() })
+                Some(Self {
+                    writer,
+                    start: Instant::now(),
+                })
             }
             Err(e) => {
                 warn!("HEADTRACK_MSFS_TRACE set but could not create {path}: {e}");
@@ -217,8 +227,7 @@ impl TraceWriter {
             "{t:.4},{frame_rate:.1},{dt:.6},{alpha:.5},\
              {:.5},{:.5},{:.5},{:.4},{:.4},{:.4},\
              {:.5},{:.5},{:.5},{:.4},{:.4},{:.4}",
-            tp[0], tp[1], tp[2], tb[0], tb[1], tb[2],
-            sp[0], sp[1], sp[2], sb[0], sb[1], sb[2],
+            tp[0], tp[1], tp[2], tb[0], tb[1], tb[2], sp[0], sp[1], sp[2], sb[0], sb[1], sb[2],
         );
         let _ = self.writer.flush();
     }
@@ -413,15 +422,18 @@ struct SimReady {
 
 impl SimReady {
     fn new() -> Self {
-        let bypassed = std::env::var("HEADTRACK_MSFS_READY_GATE")
-            .is_ok_and(|v| v.eq_ignore_ascii_case("off"));
+        let bypassed =
+            std::env::var("HEADTRACK_MSFS_READY_GATE").is_ok_and(|v| v.eq_ignore_ascii_case("off"));
         if bypassed {
             warn!(
                 "SimConnect: HEADTRACK_MSFS_READY_GATE=off — the full camera bring-up will be \
                  sent at connect; this is the ordering that crashes the sim during start-up"
             );
         }
-        Self { live: false, bypassed }
+        Self {
+            live: false,
+            bypassed,
+        }
     }
 
     /// Apply a `"Sim"` / `"SimStart"` / `"SimStop"` notification.
@@ -448,7 +460,9 @@ async fn send_camera_acquire(conn: &mut connection::SimConnectTcp) -> Result<(),
         protocol::MSG_CAMERA_ACQUIRE,
         &protocol::build_camera_acquire(CLIENT_ID),
     );
-    conn.send_packet(&acq).await.map_err(|e| format!("CameraAcquire send failed: {e:#}"))
+    conn.send_packet(&acq)
+        .await
+        .map_err(|e| format!("CameraAcquire send failed: {e:#}"))
 }
 
 /// The pre-2026-08-17 bring-up: everything at once, immediately after the
@@ -507,13 +521,18 @@ async fn request_aircraft_state(conn: &mut connection::SimConnectTcp) -> bool {
     let add_pkt = protocol::build_packet(
         protocol::MSG_ADD_TO_DATA_DEFINITION,
         &protocol::build_add_to_data_definition(
-            TITLE_DEFINE_ID, "TITLE", "", protocol::DATATYPE_STRING256,
+            TITLE_DEFINE_ID,
+            "TITLE",
+            "",
+            protocol::DATATYPE_STRING256,
         ),
     );
     let req_pkt = protocol::build_packet(
         protocol::MSG_REQUEST_DATA_ON_SIM_OBJECT,
         &protocol::build_request_data_on_sim_object(
-            TITLE_DEFINE_ID, TITLE_DEFINE_ID, protocol::PERIOD_VISUAL_FRAME,
+            TITLE_DEFINE_ID,
+            TITLE_DEFINE_ID,
+            protocol::PERIOD_VISUAL_FRAME,
         ),
     );
     if conn.send_packet(&add_pkt).await.is_err() || conn.send_packet(&req_pkt).await.is_err() {
@@ -576,10 +595,7 @@ async fn wait_for_recv_open(conn: &mut connection::SimConnectTcp) -> (u32, u32, 
 /// Seat the addon camera at camera definition `def` and request the resulting
 /// pilot-eye pose in EYEPOINT (the response defines `pilot_neutral`). The
 /// caller pushes `GetPurpose::Neutral` on success.
-async fn bootstrap_camera(
-    conn: &mut connection::SimConnectTcp,
-    def: &str,
-) -> Result<(), String> {
+async fn bootstrap_camera(conn: &mut connection::SimConnectTcp, def: &str) -> Result<(), String> {
     info!("SimConnect: bootstrapping addon camera with {def:?}");
     let pkt = protocol::build_packet(
         protocol::MSG_CAMERA_SET_USING_CAMERA_DEFINITION,
@@ -639,9 +655,9 @@ pub enum SeatCmd {
 
 /// Receiver + read-out mirrors handed to the connection task.
 struct SeatShared {
-    rx:     tokio::sync::mpsc::UnboundedReceiver<SeatCmd>,
+    rx: tokio::sync::mpsc::UnboundedReceiver<SeatCmd>,
     mirror: Arc<[AtomicU32; 3]>,
-    title:  Arc<std::sync::Mutex<String>>,
+    title: Arc<std::sync::Mutex<String>>,
 }
 
 /// `$XDG_CONFIG_HOME/headtrack-rs/msfs-seats.tsv` (falls back to `~/.config`).
@@ -691,8 +707,9 @@ fn save_seat_for(key: &str, off: [f32; 3]) {
     } else {
         map.push((key.to_string(), off));
     }
-    let mut text =
-        String::from("# headtrack-rs MSFS seat offsets — key<TAB>x<TAB>y<TAB>z (metres, EYEPOINT)\n");
+    let mut text = String::from(
+        "# headtrack-rs MSFS seat offsets — key<TAB>x<TAB>y<TAB>z (metres, EYEPOINT)\n",
+    );
     for (k, o) in &map {
         text.push_str(&format!("{}\t{:.4}\t{:.4}\t{:.4}\n", k, o[0], o[1], o[2]));
     }
@@ -706,7 +723,11 @@ fn save_seat_for(key: &str, off: [f32; 3]) {
 /// TSV-safe seat-map key from an aircraft TITLE.
 fn sanitize_seat_key(title: &str) -> String {
     let key = title.replace(['\t', '\n', '\r'], " ").trim().to_string();
-    if key.is_empty() { SEAT_KEY_DEFAULT.to_string() } else { key }
+    if key.is_empty() {
+        SEAT_KEY_DEFAULT.to_string()
+    } else {
+        key
+    }
 }
 
 /// Copy the live seat offset into the f32-bit atomic mirror (GUI read-out).
@@ -832,7 +853,11 @@ async fn run_connection(
         // Where we are on the bring-up ladder. `Streaming` is unlocked by the
         // sim's own camera status — never by a lifecycle event and never by a
         // timer. See [`BringUp`].
-        let mut stage = if ready.bypassed { BringUp::Streaming } else { BringUp::WaitAcquired };
+        let mut stage = if ready.bypassed {
+            BringUp::Streaming
+        } else {
+            BringUp::WaitAcquired
+        };
         if ready.bypassed {
             if !bring_up_camera_unsafe(&mut conn).await {
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -1125,7 +1150,9 @@ async fn run_connection(
                     }
                 }
                 protocol::RECV_CAMERA_STATUS => {
-                    if let Some((new_acquired, new_game_ctl)) = protocol::parse_recv_camera_status(&payload) {
+                    if let Some((new_acquired, new_game_ctl)) =
+                        protocol::parse_recv_camera_status(&payload)
+                    {
                         if !camera_status_seen {
                             camera_status_seen = true;
                             // The one line that says whether MSFS answers a
@@ -1217,8 +1244,7 @@ async fn run_connection(
                         // acquire moves the sim from 3 to 0), so this only
                         // stays on screen when the in-game toggle really is off.
                         if acquired_state == protocol::CAMERA_USER_DISABLED
-                            && last_disabled_warn
-                                .is_none_or(|t| t.elapsed() >= WAIT_LOG_INTERVAL)
+                            && last_disabled_warn.is_none_or(|t| t.elapsed() >= WAIT_LOG_INTERVAL)
                         {
                             last_disabled_warn = Some(Instant::now());
                             warn!(
@@ -1288,7 +1314,11 @@ async fn run_connection(
                 }
                 protocol::RECV_CAMERA_DEFINITION_LIST => {
                     if let Some(names) = protocol::parse_recv_camera_definition_list(&payload) {
-                        info!("SimConnect: camera definitions ({}): {:?}", names.len(), names);
+                        info!(
+                            "SimConnect: camera definitions ({}): {:?}",
+                            names.len(),
+                            names
+                        );
                         match pick_pilot_camera(&names) {
                             Some(pick) => {
                                 info!(
@@ -1322,7 +1352,8 @@ async fn run_connection(
                     }
                 }
                 protocol::RECV_SIMOBJECT_DATA => {
-                    if protocol::parse_simobject_data_request_id(&payload) == Some(TITLE_DEFINE_ID) {
+                    if protocol::parse_simobject_data_request_id(&payload) == Some(TITLE_DEFINE_ID)
+                    {
                         if let Some(title) = protocol::parse_simobject_data_string256(&payload) {
                             let key = sanitize_seat_key(&title);
                             // TITLE arrives every visual frame — act on change only.
@@ -1378,7 +1409,9 @@ async fn run_connection(
 
         connected.store(false, Ordering::Relaxed);
         if !exception_counts.is_empty() {
-            warn!("SimConnect: exception totals this connection (code: count): {exception_counts:?}");
+            warn!(
+                "SimConnect: exception totals this connection (code: count): {exception_counts:?}"
+            );
         }
         if enabled.load(Ordering::Relaxed) {
             // Closing the sim is a normal lifecycle event, not a fault — INFO
@@ -1446,16 +1479,32 @@ impl SimConnectOutput {
             std::thread::Builder::new()
                 .name("simconnect".into())
                 .spawn(move || {
-                    match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                    match tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                    {
                         Ok(rt) => rt.block_on(run_connection(
-                            addr, rx, connected, enabled, smoothing, seat_shared,
+                            addr,
+                            rx,
+                            connected,
+                            enabled,
+                            smoothing,
+                            seat_shared,
                         )),
                         Err(e) => warn!("SimConnect: failed to build runtime: {e:#}"),
                     }
                 })
                 .map_err(|e| anyhow::anyhow!("failed to spawn SimConnect thread: {e}"))?;
         }
-        Ok(Self { tx, connected, enabled, smoothing, seat_tx, seat, title })
+        Ok(Self {
+            tx,
+            connected,
+            enabled,
+            smoothing,
+            seat_tx,
+            seat,
+            title,
+        })
     }
 
     /// Returns `true` while MSFS is connected and the Camera API handshake has succeeded.
@@ -1478,7 +1527,8 @@ impl SimConnectOutput {
     /// smoother). Mirrors the X-Plane plugin's per-frame LERP; applied live.
     #[inline]
     pub fn set_smoothing(&self, speed: f32) {
-        self.smoothing.store(speed.max(0.0).to_bits(), Ordering::Relaxed);
+        self.smoothing
+            .store(speed.max(0.0).to_bits(), Ordering::Relaxed);
     }
 
     /// Nudge one seat axis by `delta_m` metres (clamped ±[`SEAT_LIMIT`] by the
@@ -1562,7 +1612,10 @@ mod seat_and_mapping_tests {
 
         // PBH is { Pitch, Bank, Heading }: pitch and bank inverted, heading not.
         assert!((pbh[0] - (-20.0)).abs() < 1e-6, "pitch must be inverted");
-        assert!((pbh[1] - (-30.0)).abs() < 1e-6, "bank/roll must be inverted");
+        assert!(
+            (pbh[1] - (-30.0)).abs() < 1e-6,
+            "bank/roll must be inverted"
+        );
         assert!((pbh[2] - 10.0).abs() < 1e-6, "heading/yaw passes through");
     }
 
@@ -1606,7 +1659,9 @@ mod seat_and_mapping_tests {
         save_seat_for("Boeing 747", [-0.30, 0.02, 0.00]);
 
         let c = load_seat_for("Cessna 172");
-        assert!((c[0] - 0.10).abs() < 1e-4 && (c[1] + 0.05).abs() < 1e-4 && (c[2] - 0.25).abs() < 1e-4);
+        assert!(
+            (c[0] - 0.10).abs() < 1e-4 && (c[1] + 0.05).abs() < 1e-4 && (c[2] - 0.25).abs() < 1e-4
+        );
         let b = load_seat_for("Boeing 747");
         assert!((b[0] + 0.30).abs() < 1e-4 && (b[1] - 0.02).abs() < 1e-4 && b[2].abs() < 1e-4);
 
@@ -1620,7 +1675,10 @@ mod seat_and_mapping_tests {
         let key = sanitize_seat_key("Weird\tPlane");
         save_seat_for(&key, [0.01, 0.02, 0.03]);
         assert!((load_seat_for(&key)[1] - 0.02).abs() < 1e-4);
-        assert!((load_seat_for("Boeing 747")[0] + 0.30).abs() < 1e-4, "store still intact");
+        assert!(
+            (load_seat_for("Boeing 747")[0] + 0.30).abs() < 1e-4,
+            "store still intact"
+        );
 
         match prev {
             Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
@@ -1689,10 +1747,22 @@ mod bring_up_ladder_tests {
     #[test]
     fn the_camera_is_reclaimed_after_it_is_lost_mid_flight() {
         // The toggle sequence exactly as the sim reported it.
-        assert!(!should_acquire(protocol::CAMERA_ACQUIRED, false), "streaming: nothing to do");
-        assert!(should_acquire(protocol::CAMERA_USER_DISABLED, false), "toggle off → reclaim");
-        assert!(should_acquire(protocol::CAMERA_NOT_ACQUIRED, false), "freed → reclaim");
-        assert!(!should_acquire(protocol::CAMERA_ACQUIRED, false), "reclaimed → settle");
+        assert!(
+            !should_acquire(protocol::CAMERA_ACQUIRED, false),
+            "streaming: nothing to do"
+        );
+        assert!(
+            should_acquire(protocol::CAMERA_USER_DISABLED, false),
+            "toggle off → reclaim"
+        );
+        assert!(
+            should_acquire(protocol::CAMERA_NOT_ACQUIRED, false),
+            "freed → reclaim"
+        );
+        assert!(
+            !should_acquire(protocol::CAMERA_ACQUIRED, false),
+            "reclaimed → settle"
+        );
     }
 
     /// The crash fix, as a test. While the game drives the camera — menus,

@@ -66,7 +66,7 @@ const IOU_THRESHOLD: f32 = 0.4;
 
 /// Pixel mean / std applied during preprocessing (matches yakhyo).
 const PIX_MEAN: f32 = 127.5;
-const PIX_STD:  f32 = 128.0;
+const PIX_STD: f32 = 128.0;
 
 /// Internal NMS candidate: `(score, bbox=[x0, y0, x1, y1], 5 keypoints)`.
 type RawDetection = (f32, [f32; 4], [(f32, f32); 5]);
@@ -83,7 +83,7 @@ pub struct FaceDetection {
 
 /// SCRFD ONNX session + cached anchor centers (one set per stride).
 pub struct ScrfdDetector {
-    session:        Session,
+    session: Session,
     anchor_centers: [Vec<(f32, f32)>; 3],
 }
 
@@ -114,16 +114,22 @@ impl ScrfdDetector {
             build_anchor_centers(INPUT_SIZE, STRIDES[2]),
         ];
 
-        Ok(Self { session, anchor_centers })
+        Ok(Self {
+            session,
+            anchor_centers,
+        })
     }
 
     /// Detect the highest-scoring face in `rgb_frame`. Returns coordinates in
     /// the original image's pixel space, *not* the letterboxed model space.
-    pub fn detect(&mut self, rgb_frame: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Result<Option<FaceDetection>> {
+    pub fn detect(
+        &mut self,
+        rgb_frame: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+    ) -> Result<Option<FaceDetection>> {
         let (img_w, img_h) = rgb_frame.dimensions();
 
         // ── Letterbox into a 640×640 canvas, preserving aspect ratio. ───────
-        let im_ratio    = img_h as f32 / img_w as f32;
+        let im_ratio = img_h as f32 / img_w as f32;
         let model_ratio = 1.0; // 640/640
         let (new_w, new_h) = if im_ratio > model_ratio {
             // Image taller than model → match height, scale width.
@@ -138,7 +144,10 @@ impl ScrfdDetector {
         let det_scale = new_h as f32 / img_h as f32;
 
         let resized = image::imageops::resize(
-            rgb_frame, new_w, new_h, image::imageops::FilterType::Triangle,
+            rgb_frame,
+            new_w,
+            new_h,
+            image::imageops::FilterType::Triangle,
         );
 
         // ── Preprocess into NCHW float32 with mean/std normalisation. ──────
@@ -154,15 +163,18 @@ impl ScrfdDetector {
             for x in 0..new_w {
                 let px = resized.get_pixel(x, y);
                 let i = (y * INPUT_SIZE + x) as usize;
-                input[i]         = (px[0] as f32 - PIX_MEAN) / PIX_STD; // R
-                input[i + n]     = (px[1] as f32 - PIX_MEAN) / PIX_STD; // G
+                input[i] = (px[0] as f32 - PIX_MEAN) / PIX_STD; // R
+                input[i + n] = (px[1] as f32 - PIX_MEAN) / PIX_STD; // G
                 input[i + 2 * n] = (px[2] as f32 - PIX_MEAN) / PIX_STD; // B
             }
         }
 
-        let shape  = [1usize, 3, INPUT_SIZE as usize, INPUT_SIZE as usize];
+        let shape = [1usize, 3, INPUT_SIZE as usize, INPUT_SIZE as usize];
         let tensor = Tensor::<f32>::from_array((shape, input)).context("building SCRFD tensor")?;
-        let outputs = self.session.run(ort::inputs![tensor]).context("SCRFD inference")?;
+        let outputs = self
+            .session
+            .run(ort::inputs![tensor])
+            .context("SCRFD inference")?;
 
         // Outputs are anonymously named ('448', '471', '494', ...) — order is
         // [scores×3, bboxes×3, kps×3] across the three strides 8/16/32.
@@ -191,11 +203,13 @@ impl ScrfdDetector {
 
             for (i, &(cx, cy)) in centers.iter().enumerate() {
                 let score = scores[i];
-                if score < CONF_THRESHOLD { continue; }
+                if score < CONF_THRESHOLD {
+                    continue;
+                }
 
                 // bbox: anchor − distance for top-left, anchor + distance for bottom-right.
                 let bx = i * 4;
-                let l = bbox_d[bx]     * stride as f32;
+                let l = bbox_d[bx] * stride as f32;
                 let t = bbox_d[bx + 1] * stride as f32;
                 let r = bbox_d[bx + 2] * stride as f32;
                 let b = bbox_d[bx + 3] * stride as f32;
@@ -206,7 +220,7 @@ impl ScrfdDetector {
                 let mut kps = [(0.0f32, 0.0f32); 5];
                 for k in 0..5 {
                     kps[k] = (
-                        cx + kps_d[kx + k * 2]     * stride as f32,
+                        cx + kps_d[kx + k * 2] * stride as f32,
                         cy + kps_d[kx + k * 2 + 1] * stride as f32,
                     );
                 }
@@ -235,10 +249,7 @@ impl ScrfdDetector {
         let (x1, y1) = to_orig(bbox[2], bbox[3]);
         // SCRFD emits exactly 5 keypoints; `FaceDetection.kps` is a Vec so a
         // denser landmark stage could carry more without changing this type.
-        let kps_orig: Vec<(f32, f32)> = kps
-            .iter()
-            .map(|&(kx, ky)| to_orig(kx, ky))
-            .collect();
+        let kps_orig: Vec<(f32, f32)> = kps.iter().map(|&(kx, ky)| to_orig(kx, ky)).collect();
 
         // Map to the existing Detection struct (top-left origin + width/height).
         let det = Detection {
@@ -250,7 +261,10 @@ impl ScrfdDetector {
         };
 
         debug!("SCRFD: face found (score={:.3})", det.score);
-        Ok(Some(FaceDetection { bbox: det, kps: kps_orig }))
+        Ok(Some(FaceDetection {
+            bbox: det,
+            kps: kps_orig,
+        }))
     }
 }
 
@@ -283,12 +297,16 @@ fn nms(dets: &[RawDetection], iou_thres: f32) -> Vec<usize> {
     let mut keep = Vec::with_capacity(n);
 
     for i in 0..n {
-        if suppressed[i] { continue; }
+        if suppressed[i] {
+            continue;
+        }
         keep.push(i);
         let a = dets[i].1;
         let area_a = (a[2] - a[0] + 1.0) * (a[3] - a[1] + 1.0);
         for j in (i + 1)..n {
-            if suppressed[j] { continue; }
+            if suppressed[j] {
+                continue;
+            }
             let b = dets[j].1;
             let inter_x0 = a[0].max(b[0]);
             let inter_y0 = a[1].max(b[1]);

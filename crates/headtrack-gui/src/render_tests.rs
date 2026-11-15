@@ -212,10 +212,22 @@ fn populated_app(home: &Path) -> HeadtrackApp {
     s.msfs_seat[2].store((-0.12_f32).to_bits(), Ordering::Relaxed);
     let stick = "VKB-Sim (C) Alex Oz 2023 S-TECS MODERN THROTTLE MAX STEM";
     *s.controller_bindings.lock().unwrap() = vec![
-        ("recenter".into(), "Recenter".into(), Some(format!("{stick} \u{00b7} BTN_TRIGGER_HAPPY18"))),
+        (
+            "recenter".into(),
+            "Recenter".into(),
+            Some(format!("{stick} \u{00b7} BTN_TRIGGER_HAPPY18")),
+        ),
         ("toggle".into(), "Toggle tracking".into(), None),
-        ("msfs-seat-forward".into(), "MSFS seat forward".into(), Some(format!("{stick} \u{00b7} BTN_BASE4"))),
-        ("msfs-enabled".into(), "Release the MSFS camera".into(), None),
+        (
+            "msfs-seat-forward".into(),
+            "MSFS seat forward".into(),
+            Some(format!("{stick} \u{00b7} BTN_BASE4")),
+        ),
+        (
+            "msfs-enabled".into(),
+            "Release the MSFS camera".into(),
+            None,
+        ),
     ];
     *s.controller_capture.lock().unwrap() = Some("toggle".into());
     *s.global_shortcuts.lock().unwrap() = Some(vec![
@@ -234,23 +246,33 @@ fn populated_app(home: &Path) -> HeadtrackApp {
     }];
     app.tracking_enabled = false;
     app.recenter_flash = Some(std::time::Instant::now());
-    app.profile_name = "MSFS TRANSLATION v7 (v6 + pitch_to_yaw 0.25 -> 0.05) for the long evenings".into();
+    app.profile_name =
+        "MSFS TRANSLATION v7 (v6 + pitch_to_yaw 0.25 -> 0.05) for the long evenings".into();
     app.profile_dirty = true;
     app.profile_status = format!(
         "Saved to {}",
-        home.join(".config/headtrack-rs/profiles/MSFS_TRANSLATION_v7.toml").display()
+        home.join(".config/headtrack-rs/profiles/MSFS_TRANSLATION_v7.toml")
+            .display()
     );
     app.profiles_list = vec![
-        (app.profile_name.clone(), home.join(".config/headtrack-rs/profiles/a.toml")),
-        ("X-Plane 12 evening".into(), home.join(".config/headtrack-rs/profiles/b.toml")),
-        ("Star Citizen dogfight, slew-limited pitch".into(), home.join(".config/headtrack-rs/profiles/c.toml")),
+        (
+            app.profile_name.clone(),
+            home.join(".config/headtrack-rs/profiles/a.toml"),
+        ),
+        (
+            "X-Plane 12 evening".into(),
+            home.join(".config/headtrack-rs/profiles/b.toml"),
+        ),
+        (
+            "Star Citizen dogfight, slew-limited pitch".into(),
+            home.join(".config/headtrack-rs/profiles/c.toml"),
+        ),
     ];
     app.profile_pending_delete = Some(home.join(".config/headtrack-rs/profiles/b.toml"));
     app.hotkey_recenter = Some(egui::Key::F9);
     app.hotkey_capture = Some(HotkeyAction::Toggle);
     app.fov_preset_name = "Brio wide".into();
-    app.v4l2_optimize_status =
-        Some((tabs::camera::optimise_message(2), std::time::Instant::now()));
+    app.v4l2_optimize_status = Some((tabs::camera::optimise_message(2), std::time::Instant::now()));
     app.xplane_path = home.join("X-Plane 12").display().to_string();
     app.xplane_install_status = Some((
         "Installed lin.xpl in the X-Plane 12 folder, under Resources/plugins/headtrack/64.".into(),
@@ -276,14 +298,24 @@ fn populated_app(home: &Path) -> HeadtrackApp {
         .display()
         .to_string();
     app.diag_recording_start = Some(std::time::Instant::now());
-    app.diag_recording_path = PathBuf::from(&app.diag_directory).join("headtrack_record_1792000000.csv");
+    app.diag_recording_path =
+        PathBuf::from(&app.diag_directory).join("headtrack_record_1792000000.csv");
 
     // FOV presets come from `camera.toml` every frame — the scratch one.
     let cfg = CameraConfig {
         fov_presets: vec![
-            headtrack_core::config::FovPreset { name: "Brio wide".into(), fov: 90.0 },
-            headtrack_core::config::FovPreset { name: "C920".into(), fov: 78.0 },
-            headtrack_core::config::FovPreset { name: "Kiyo Pro narrow".into(), fov: 65.0 },
+            headtrack_core::config::FovPreset {
+                name: "Brio wide".into(),
+                fov: 90.0,
+            },
+            headtrack_core::config::FovPreset {
+                name: "C920".into(),
+                fov: 78.0,
+            },
+            headtrack_core::config::FovPreset {
+                name: "Kiyo Pro narrow".into(),
+                fov: 65.0,
+            },
         ],
         ..CameraConfig::default()
     };
@@ -295,7 +327,8 @@ fn populated_app(home: &Path) -> HeadtrackApp {
 fn grey_jpeg(w: u32, h: u32) -> Vec<u8> {
     let img = image::RgbImage::from_pixel(w, h, image::Rgb([60, 60, 60]));
     let mut out = std::io::Cursor::new(Vec::new());
-    img.write_to(&mut out, image::ImageFormat::Jpeg).expect("encode jpeg");
+    img.write_to(&mut out, image::ImageFormat::Jpeg)
+        .expect("encode jpeg");
     out.into_inner()
 }
 
@@ -320,7 +353,10 @@ fn render(app: &mut HeadtrackApp, size: (f32, f32)) -> egui::FullOutput {
     let ctx = egui::Context::default();
     ui::theme::install(&ctx);
     let input = || egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(size.0, size.1))),
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(size.0, size.1),
+        )),
         ..Default::default()
     };
     for _ in 0..3 {
@@ -338,7 +374,14 @@ fn each_page(app: &mut HeadtrackApp, mut check: impl FnMut(&mut HeadtrackApp, &s
             Tab::Tuning => {
                 for group in [TuningGroup::Look, TuningGroup::Move] {
                     app.tuning_group = group;
-                    check(app, if group == TuningGroup::Look { "Tuning/Look" } else { "Tuning/Move" });
+                    check(
+                        app,
+                        if group == TuningGroup::Look {
+                            "Tuning/Look"
+                        } else {
+                            "Tuning/Move"
+                        },
+                    );
                 }
             }
             Tab::Advanced => {
@@ -356,7 +399,9 @@ fn each_page(app: &mut HeadtrackApp, mut check: impl FnMut(&mut HeadtrackApp, &s
                         (axis % 2 == 0).then_some([12.0, 12.0, 4.0, 10.0, 10.0, 60.0]);
                     check(app, &format!("Advanced/axis{axis}/rec{status}"));
                 }
-                app.state.recording_status.store(recording, Ordering::Relaxed);
+                app.state
+                    .recording_status
+                    .store(recording, Ordering::Relaxed);
             }
             _ => check(app, tab.label()),
         }
@@ -391,11 +436,18 @@ fn no_tab_overflows_its_column() {
     ] {
         fixtures.push((format!("tobii {state:?}"), tobii_app(&home, state)));
     }
-    fixtures.push(("tobii neutral".into(), tobii_app_with(&home, tabs::tobii::fake_neutral_status(0.4))));
+    fixtures.push((
+        "tobii neutral".into(),
+        tobii_app_with(&home, tabs::tobii::fake_neutral_status(0.4)),
+    ));
 
     for (name, mut app) in fixtures {
         // The empty fixture must see the empty home: no MSFS prefix.
-        use_home(if name == "empty" { "empty" } else { "populated" });
+        use_home(if name == "empty" {
+            "empty"
+        } else {
+            "populated"
+        });
         for size in SIZES {
             each_page(&mut app, |app, page| {
                 render(app, size);
@@ -420,10 +472,18 @@ fn the_rail_footer_never_overlaps_the_nav_list() {
     let home = use_home("populated");
     let mut failures = Vec::new();
     for (name, mut app) in [("empty", empty_app()), ("populated", populated_app(&home))] {
-        assert!(app.show_advanced, "the fixture must draw the longest nav list");
+        assert!(
+            app.show_advanced,
+            "the fixture must draw the longest nav list"
+        );
         // Every 10 px from the minimum up past the compact-brand threshold,
         // then the standard sizes.
-        let sweep = (0..=16).map(|i| (CameraConfig::MIN_WINDOW.0, CameraConfig::MIN_WINDOW.1 + 10.0 * i as f32));
+        let sweep = (0..=16).map(|i| {
+            (
+                CameraConfig::MIN_WINDOW.0,
+                CameraConfig::MIN_WINDOW.1 + 10.0 * i as f32,
+            )
+        });
         for size in sweep.chain(SIZES) {
             render(&mut app, size);
             if app.rail_overlap > 0.0 {
@@ -465,7 +525,10 @@ fn the_status_bar_tone_matches_the_tobii_page_for_every_state() {
     let status = app.tobii_status();
     assert_eq!(
         app.source_health(true),
-        Err(("Tobii: hold still".into(), tabs::tobii::status_label(&status).1))
+        Err((
+            "Tobii: hold still".into(),
+            tabs::tobii::status_label(&status).1
+        ))
     );
 }
 
@@ -474,12 +537,17 @@ fn the_status_bar_tone_matches_the_tobii_page_for_every_state() {
 #[test]
 fn the_recommended_resolution_is_the_default_one() {
     assert_eq!(
-        (CAMERA_RESOLUTIONS[CAMERA_RES_DEFAULT_IDX].0, CAMERA_RESOLUTIONS[CAMERA_RES_DEFAULT_IDX].1),
+        (
+            CAMERA_RESOLUTIONS[CAMERA_RES_DEFAULT_IDX].0,
+            CAMERA_RESOLUTIONS[CAMERA_RES_DEFAULT_IDX].1
+        ),
         CameraConfig::default_resolution()
     );
     assert_eq!(CameraConfig::default_resolution(), (1280, 720));
-    let recommended: Vec<_> =
-        CAMERA_RESOLUTIONS.iter().filter(|(_, _, l)| l.contains("(recommended)")).collect();
+    let recommended: Vec<_> = CAMERA_RESOLUTIONS
+        .iter()
+        .filter(|(_, _, l)| l.contains("(recommended)"))
+        .collect();
     assert_eq!(recommended.len(), 1);
     assert_eq!((recommended[0].0, recommended[0].1), (1280, 720));
 }
@@ -494,10 +562,25 @@ fn the_tobii_feed_tells_the_user_what_to_do_until_it_tracks() {
     let mut no_face = tabs::tobii::fake_status(TobiiState::NoFace);
     no_face.neutral_progress = Some(0.0);
     let cases: [(&str, TobiiStatus, Option<&str>, Option<&str>); 4] = [
-        ("opening", tabs::tobii::fake_status(TobiiState::Opening), Some("Starting the tracker"), None),
-        ("neutral", tabs::tobii::fake_neutral_status(0.25), Some("Hold still"), Some("1.5")),
+        (
+            "opening",
+            tabs::tobii::fake_status(TobiiState::Opening),
+            Some("Starting the tracker"),
+            None,
+        ),
+        (
+            "neutral",
+            tabs::tobii::fake_neutral_status(0.25),
+            Some("Hold still"),
+            Some("1.5"),
+        ),
         ("no face", no_face, Some("Face the tracker"), None),
-        ("tracking", tabs::tobii::fake_status(TobiiState::Streaming), None, None),
+        (
+            "tracking",
+            tabs::tobii::fake_status(TobiiState::Streaming),
+            None,
+            None,
+        ),
     ];
     for (name, status, headline, countdown) in cases {
         let mut app = tobii_app_with(&home, status);
@@ -509,13 +592,23 @@ fn the_tobii_feed_tells_the_user_what_to_do_until_it_tracks() {
                 let prompts = ["Starting the tracker", "Hold still", "Face the tracker"];
                 for p in prompts {
                     let shown = texts.iter().any(|t| t == p);
-                    assert_eq!(shown, headline == Some(p), "{where_}: {p:?} shown = {shown}");
+                    assert_eq!(
+                        shown,
+                        headline == Some(p),
+                        "{where_}: {p:?} shown = {shown}"
+                    );
                 }
                 if let Some(c) = countdown {
-                    assert!(texts.iter().any(|t| t == c), "{where_}: countdown {c} missing");
+                    assert!(
+                        texts.iter().any(|t| t == c),
+                        "{where_}: countdown {c} missing"
+                    );
                 }
                 if headline.is_some() && tab == Tab::Tobii {
-                    assert!(!texts.iter().any(|t| t == "No head pose"), "{where_}: placeholder under the prompt");
+                    assert!(
+                        !texts.iter().any(|t| t == "No head pose"),
+                        "{where_}: placeholder under the prompt"
+                    );
                 }
             }
         }
@@ -554,8 +647,13 @@ fn the_keybind_grids_share_their_label_column() {
             ctx.style().spacing.button_padding.x
         };
         let ctrl = text_x(&out, "BTN_TRIGGER_HAPPY18").expect("controller binding drawn");
-        let Some(hotkey) = text_x(&out, "F9") else { continue }; // below the fold
-        assert!((ctrl - hotkey).abs() < 1.0, "{size:?}: controller {ctrl:.1} vs in-app {hotkey:.1}");
+        let Some(hotkey) = text_x(&out, "F9") else {
+            continue;
+        }; // below the fold
+        assert!(
+            (ctrl - hotkey).abs() < 1.0,
+            "{size:?}: controller {ctrl:.1} vs in-app {hotkey:.1}"
+        );
         if let Some(kbd) = text_x(&out, "Ctrl+Alt+Shift+F12") {
             assert!(
                 (ctrl - pad - kbd).abs() < 1.0,
@@ -572,13 +670,20 @@ fn the_keybind_grids_share_their_label_column() {
 fn the_tobii_tab_has_no_gaze_card_for_now() {
     let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = use_home("populated");
-    for state in [TobiiState::Opening, TobiiState::Streaming, TobiiState::NoFace] {
+    for state in [
+        TobiiState::Opening,
+        TobiiState::Streaming,
+        TobiiState::NoFace,
+    ] {
         let mut app = tobii_app(&home, state);
         app.active_tab = Tab::Tobii;
         let texts = all_texts(&render(&mut app, TALL));
         assert!(texts.iter().any(|t| t == "Head"), "{state:?}: no Head card");
         for gone in ["Gaze", "No gaze"] {
-            assert!(!texts.iter().any(|t| t == gone), "{state:?}: {gone:?} is drawn");
+            assert!(
+                !texts.iter().any(|t| t == gone),
+                "{state:?}: {gone:?} is drawn"
+            );
         }
     }
 }
@@ -609,11 +714,22 @@ fn the_rail_shows_the_wordmark_on_one_line_and_no_tagline() {
             egui::Shape::Text(t) => {
                 let text = &t.galley.job.text;
                 if text == "HeadtrackRS" {
-                    let tones = t.galley.job.sections.iter().map(|s| s.format.color).collect();
+                    let tones = t
+                        .galley
+                        .job
+                        .sections
+                        .iter()
+                        .map(|s| s.format.color)
+                        .collect();
                     marks.push((t.galley.rows.len(), tones));
                 }
                 // `track_out` letter-spaces with U+2009.
-                if text.chars().filter(|c| !c.is_whitespace()).collect::<String>() == "6DOF·LINUX" {
+                if text
+                    .chars()
+                    .filter(|c| !c.is_whitespace())
+                    .collect::<String>()
+                    == "6DOF·LINUX"
+                {
                     *tagline = true;
                 }
             }
@@ -633,7 +749,11 @@ fn the_rail_shows_the_wordmark_on_one_line_and_no_tagline() {
         assert_eq!(marks.len(), 1, "height {h}: wordmarks drawn {marks:?}");
         let (rows, tones) = &marks[0];
         assert_eq!(*rows, 1, "height {h}: the wordmark wrapped");
-        assert_eq!(tones, &[colors::TEXT_HI, colors::ORANGE], "height {h}: Headtrack + RS in the accent");
+        assert_eq!(
+            tones,
+            &[colors::TEXT_HI, colors::ORANGE],
+            "height {h}: Headtrack + RS in the accent"
+        );
     }
 }
 
@@ -652,15 +772,23 @@ fn the_live_pose_gauges_are_not_clipped_away() {
                 _ => false,
             }
         }
-        out.shapes.iter().any(|cs| walk(&cs.shape, cs.clip_rect, want))
+        out.shapes
+            .iter()
+            .any(|cs| walk(&cs.shape, cs.clip_rect, want))
     }
     let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = use_home("populated");
-    for mut app in [populated_app(&home), tobii_app(&home, TobiiState::Streaming)] {
+    for mut app in [
+        populated_app(&home),
+        tobii_app(&home, TobiiState::Streaming),
+    ] {
         app.active_tab = Tab::Dashboard;
         let out = render(&mut app, TALL);
         for want in ["Rotation", "Translation", AXIS_LABELS[0], AXIS_LABELS[5]] {
-            assert!(visible(&out, want), "{want:?} is clipped away on the Dashboard");
+            assert!(
+                visible(&out, want),
+                "{want:?} is clipped away on the Dashboard"
+            );
         }
     }
 }
@@ -688,15 +816,21 @@ fn the_tobii_head_marker_shows_the_live_pose_only_while_streaming() {
                 assert_eq!(
                     shown,
                     state == TobiiState::Streaming,
-                    "{state:?} {} {size:?}: marker shown = {shown}", tab.label()
+                    "{state:?} {} {size:?}: marker shown = {shown}",
+                    tab.label()
                 );
                 assert!(
-                    !texts.iter().any(|t| t.starts_with("Yaw ") && t.contains("Z ")),
+                    !texts
+                        .iter()
+                        .any(|t| t.starts_with("Yaw ") && t.contains("Z ")),
                     "{}: Tobii has no Z",
                     tab.label()
                 );
                 if tab == Tab::Tobii && state != TobiiState::Streaming {
-                    assert!(texts.iter().any(|t| t == "No head pose"), "{state:?} {size:?}");
+                    assert!(
+                        texts.iter().any(|t| t == "No head pose"),
+                        "{state:?} {size:?}"
+                    );
                 }
             }
         }
@@ -724,9 +858,12 @@ fn a_long_diagnostics_folder_shows_its_end() {
         texts(&cs.shape, &mut all);
     }
     assert!(
-        all.iter().any(|t| t.starts_with('\u{2026}') && t.ends_with("a folder with a long name")),
+        all.iter()
+            .any(|t| t.starts_with('\u{2026}') && t.ends_with("a folder with a long name")),
         "no left-elided diagnostics folder among {:?}",
-        all.iter().filter(|t| t.contains("diagnostics") || t.contains("long name")).collect::<Vec<_>>()
+        all.iter()
+            .filter(|t| t.contains("diagnostics") || t.contains("long name"))
+            .collect::<Vec<_>>()
     );
 }
 
@@ -768,12 +905,20 @@ fn no_prose_run_is_longer_than_a_sentence() {
     fixtures.push(("empty", empty_app()));
     let home = use_home("populated");
     fixtures.push(("populated", populated_app(&home)));
-    for state in [TobiiState::PermissionDenied, TobiiState::Busy, TobiiState::Lost] {
+    for state in [
+        TobiiState::PermissionDenied,
+        TobiiState::Busy,
+        TobiiState::Lost,
+    ] {
         fixtures.push(("tobii", tobii_app(&home, state)));
     }
 
     for (name, mut app) in fixtures {
-        use_home(if name == "empty" { "empty" } else { "populated" });
+        use_home(if name == "empty" {
+            "empty"
+        } else {
+            "populated"
+        });
         // Tall, so the whole page is on screen: egui does not paint a label
         // below the fold, and an unpainted label has no text to check.
         each_page(&mut app, |app, page| {
@@ -829,7 +974,12 @@ fn the_populated_fixture_draws_its_populated_branches() {
 
     app.active_tab = Tab::Settings;
     let settings = text_of(&render(&mut app, TALL));
-    for want in ["Installed", "Prefix folder", "Bin64", "Configuring the registry"] {
+    for want in [
+        "Installed",
+        "Prefix folder",
+        "Bin64",
+        "Configuring the registry",
+    ] {
         assert!(settings.contains(want), "Settings is missing {want:?}");
     }
     assert!(
@@ -839,26 +989,44 @@ fn the_populated_fixture_draws_its_populated_branches() {
 
     app.active_tab = Tab::Profiles;
     let profiles = text_of(&render(&mut app, TALL));
-    for want in ["Delete this profile?", "Active", "Unsaved changes", "Planned"] {
+    for want in [
+        "Delete this profile?",
+        "Active",
+        "Unsaved changes",
+        "Planned",
+    ] {
         assert!(profiles.contains(want), "Profiles is missing {want:?}");
     }
-    assert!(!profiles.contains("Phase 4"), "Profiles shows the internal roadmap label");
+    assert!(
+        !profiles.contains("Phase 4"),
+        "Profiles shows the internal roadmap label"
+    );
 
     app.active_tab = Tab::Keybinds;
     let keybinds = text_of(&render(&mut app, TALL));
-    for want in ["headtrack-rs/seat_reset", "msfs-seat reset", "BTN_TRIGGER_HAPPY18"] {
+    for want in [
+        "headtrack-rs/seat_reset",
+        "msfs-seat reset",
+        "BTN_TRIGGER_HAPPY18",
+    ] {
         assert!(keybinds.contains(want), "Keybinds is missing {want:?}");
     }
 
     app.active_tab = Tab::Camera;
     let camera = text_of(&render(&mut app, TALL));
-    assert!(camera.contains("Kiyo Pro narrow"), "the scratch camera.toml presets were not drawn");
+    assert!(
+        camera.contains("Kiyo Pro narrow"),
+        "the scratch camera.toml presets were not drawn"
+    );
 
     use_home("empty");
     let mut empty = empty_app();
     empty.active_tab = Tab::Settings;
     let settings = text_of(&render(&mut empty, TALL));
-    assert!(settings.contains("MSFS 2024 not found"), "the empty home found an MSFS prefix");
+    assert!(
+        settings.contains("MSFS 2024 not found"),
+        "the empty home found an MSFS prefix"
+    );
 }
 
 /// The source-level half of the rules: no raw buttons or checkboxes in the
@@ -886,9 +1054,20 @@ fn the_tabs_use_the_design_system_and_the_type_scale() {
                 "track_out(",
                 "egui::Frame::new()",
             ] {
-                assert!(!code.contains(banned), "{file}:{}: `{banned}` in {line:?}", n + 1);
+                assert!(
+                    !code.contains(banned),
+                    "{file}:{}: `{banned}` in {line:?}",
+                    n + 1
+                );
             }
-            for literal in [".size(1", ".size(2", "FontId::new(1", "FontId::new(2", "proportional(1", "monospace(1"] {
+            for literal in [
+                ".size(1",
+                ".size(2",
+                "FontId::new(1",
+                "FontId::new(2",
+                "proportional(1",
+                "monospace(1",
+            ] {
                 assert!(
                     !code.contains(literal),
                     "{file}:{}: a numeric text size — use a theme::TEXT_* token: {line:?}",
@@ -898,8 +1077,6 @@ fn the_tabs_use_the_design_system_and_the_type_scale() {
         }
     }
 }
-
-
 
 // ── Offline PNGs for review by eye ──────────────────────────────────────────
 
@@ -916,7 +1093,10 @@ fn rasterize(app: &mut HeadtrackApp, size: (f32, f32), pixels_per_point: f32) ->
     ui::theme::install(&ctx);
     ctx.set_pixels_per_point(pixels_per_point);
     let input = || egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(size.0, size.1))),
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(size.0, size.1),
+        )),
         ..Default::default()
     };
     // Texture id → (width, height, premultiplied texels), kept across frames
@@ -949,35 +1129,57 @@ fn rasterize(app: &mut HeadtrackApp, size: (f32, f32), pixels_per_point: f32) ->
     let out = last.expect("one frame");
     let ppp = out.pixels_per_point;
     let prims = ctx.tessellate(out.shapes, ppp);
-    let (w, h) = ((size.0 * ppp).round() as usize, (size.1 * ppp).round() as usize);
+    let (w, h) = (
+        (size.0 * ppp).round() as usize,
+        (size.1 * ppp).round() as usize,
+    );
     let mut buf = vec![[0.0_f32; 4]; w * h];
     let rgba = |c: egui::Color32| c.to_array().map(|v| v as f32 / 255.0);
 
     for prim in prims {
-        let Primitive::Mesh(mesh) = prim.primitive else { continue };
+        let Primitive::Mesh(mesh) = prim.primitive else {
+            continue;
+        };
         let clip = prim.clip_rect;
-        let (cx0, cy0) = ((clip.min.x * ppp).max(0.0) as usize, (clip.min.y * ppp).max(0.0) as usize);
-        let (cx1, cy1) = (((clip.max.x * ppp).ceil() as usize).min(w), ((clip.max.y * ppp).ceil() as usize).min(h));
+        let (cx0, cy0) = (
+            (clip.min.x * ppp).max(0.0) as usize,
+            (clip.min.y * ppp).max(0.0) as usize,
+        );
+        let (cx1, cy1) = (
+            ((clip.max.x * ppp).ceil() as usize).min(w),
+            ((clip.max.y * ppp).ceil() as usize).min(h),
+        );
         let tex = textures.get(&mesh.texture_id);
-        for tri in mesh.indices.chunks_exact(3) {
+        for tri in mesh.indices.as_chunks::<3>().0 {
             let v = [0, 1, 2].map(|i| &mesh.vertices[tri[i] as usize]);
             let p = v.map(|v| (v.pos.x * ppp, v.pos.y * ppp));
-            let area = (p[1].0 - p[0].0) * (p[2].1 - p[0].1) - (p[1].1 - p[0].1) * (p[2].0 - p[0].0);
+            let area =
+                (p[1].0 - p[0].0) * (p[2].1 - p[0].1) - (p[1].1 - p[0].1) * (p[2].0 - p[0].0);
             if area.abs() < 1e-6 {
                 continue;
             }
             let xs = [p[0].0, p[1].0, p[2].0];
             let ys = [p[0].1, p[1].1, p[2].1];
-            let bx0 = (xs.iter().cloned().fold(f32::MAX, f32::min).floor().max(0.0) as usize).max(cx0);
-            let by0 = (ys.iter().cloned().fold(f32::MAX, f32::min).floor().max(0.0) as usize).max(cy0);
-            let bx1 = (xs.iter().cloned().fold(f32::MIN, f32::max).ceil().max(0.0) as usize).min(cx1);
-            let by1 = (ys.iter().cloned().fold(f32::MIN, f32::max).ceil().max(0.0) as usize).min(cy1);
+            let bx0 =
+                (xs.iter().cloned().fold(f32::MAX, f32::min).floor().max(0.0) as usize).max(cx0);
+            let by0 =
+                (ys.iter().cloned().fold(f32::MAX, f32::min).floor().max(0.0) as usize).max(cy0);
+            let bx1 =
+                (xs.iter().cloned().fold(f32::MIN, f32::max).ceil().max(0.0) as usize).min(cx1);
+            let by1 =
+                (ys.iter().cloned().fold(f32::MIN, f32::max).ceil().max(0.0) as usize).min(cy1);
             let cols = v.map(|v| rgba(v.color));
             for y in by0..by1 {
                 for x in bx0..bx1 {
                     let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
-                    let e = |a: (f32, f32), b: (f32, f32)| (b.0 - a.0) * (py - a.1) - (b.1 - a.1) * (px - a.0);
-                    let l = [e(p[1], p[2]) / area, e(p[2], p[0]) / area, e(p[0], p[1]) / area];
+                    let e = |a: (f32, f32), b: (f32, f32)| {
+                        (b.0 - a.0) * (py - a.1) - (b.1 - a.1) * (px - a.0)
+                    };
+                    let l = [
+                        e(p[1], p[2]) / area,
+                        e(p[2], p[0]) / area,
+                        e(p[0], p[1]) / area,
+                    ];
                     if l.iter().any(|&b| b < 0.0) {
                         continue;
                     }
@@ -988,8 +1190,9 @@ fn rasterize(app: &mut HeadtrackApp, size: (f32, f32), pixels_per_point: f32) ->
                         let ty = ((t * *th as f32) as usize).min(th - 1);
                         rgba(px[ty * tw + tx])
                     });
-                    let src: [f32; 4] =
-                        std::array::from_fn(|i| (l[0] * cols[0][i] + l[1] * cols[1][i] + l[2] * cols[2][i]) * texel[i]);
+                    let src: [f32; 4] = std::array::from_fn(|i| {
+                        (l[0] * cols[0][i] + l[1] * cols[1][i] + l[2] * cols[2][i]) * texel[i]
+                    });
                     let dst = &mut buf[y * w + x];
                     for i in 0..4 {
                         dst[i] = src[i] + dst[i] * (1.0 - src[3]);
@@ -1000,7 +1203,15 @@ fn rasterize(app: &mut HeadtrackApp, size: (f32, f32), pixels_per_point: f32) ->
     }
     image::RgbaImage::from_fn(w as u32, h as u32, |x, y| {
         let c = buf[y as usize * w + x as usize];
-        image::Rgba([0, 1, 2].map(|i| (c[i].clamp(0.0, 1.0) * 255.0).round() as u8).into_iter().chain([255]).collect::<Vec<_>>().try_into().unwrap())
+        image::Rgba(
+            [0, 1, 2]
+                .map(|i| (c[i].clamp(0.0, 1.0) * 255.0).round() as u8)
+                .into_iter()
+                .chain([255])
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        )
     })
 }
 
@@ -1010,26 +1221,74 @@ fn rasterize(app: &mut HeadtrackApp, size: (f32, f32), pixels_per_point: f32) ->
 #[test]
 #[ignore = "writes review PNGs; run by hand with HEADTRACK_UI_PNG_DIR"]
 fn render_review_pngs() {
-    let dir = PathBuf::from(std::env::var("HEADTRACK_UI_PNG_DIR").expect("set HEADTRACK_UI_PNG_DIR"));
+    let dir =
+        PathBuf::from(std::env::var("HEADTRACK_UI_PNG_DIR").expect("set HEADTRACK_UI_PNG_DIR"));
     std::fs::create_dir_all(&dir).expect("png dir");
     let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = use_home("populated");
     let mut no_face = tabs::tobii::fake_status(TobiiState::NoFace);
     no_face.neutral_progress = Some(0.0);
     let shots: [(&str, TobiiStatus, Tab, (f32, f32)); 9] = [
-        ("1-dashboard-starting", tabs::tobii::fake_status(TobiiState::Opening), Tab::Dashboard, CameraConfig::DEFAULT_WINDOW),
-        ("2-dashboard-hold-still-40", tabs::tobii::fake_neutral_status(0.4), Tab::Dashboard, CameraConfig::DEFAULT_WINDOW),
-        ("3-dashboard-hold-still-85", tabs::tobii::fake_neutral_status(0.85), Tab::Dashboard, CameraConfig::DEFAULT_WINDOW),
-        ("4-dashboard-face-the-tracker", no_face.clone(), Tab::Dashboard, CameraConfig::DEFAULT_WINDOW),
-        ("5-dashboard-tracking", tabs::tobii::fake_status(TobiiState::Streaming), Tab::Dashboard, CameraConfig::DEFAULT_WINDOW),
-        ("6-dashboard-hold-still-min-size", tabs::tobii::fake_neutral_status(0.4), Tab::Dashboard, CameraConfig::MIN_WINDOW),
-        ("7-tobii-tab-hold-still", tabs::tobii::fake_neutral_status(0.4), Tab::Tobii, CameraConfig::DEFAULT_WINDOW),
-        ("8-tobii-tab-starting", tabs::tobii::fake_status(TobiiState::Opening), Tab::Tobii, CameraConfig::DEFAULT_WINDOW),
-        ("9-keybinds", tabs::tobii::fake_status(TobiiState::Streaming), Tab::Keybinds, CameraConfig::DEFAULT_WINDOW),
+        (
+            "1-dashboard-starting",
+            tabs::tobii::fake_status(TobiiState::Opening),
+            Tab::Dashboard,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
+        (
+            "2-dashboard-hold-still-40",
+            tabs::tobii::fake_neutral_status(0.4),
+            Tab::Dashboard,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
+        (
+            "3-dashboard-hold-still-85",
+            tabs::tobii::fake_neutral_status(0.85),
+            Tab::Dashboard,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
+        (
+            "4-dashboard-face-the-tracker",
+            no_face.clone(),
+            Tab::Dashboard,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
+        (
+            "5-dashboard-tracking",
+            tabs::tobii::fake_status(TobiiState::Streaming),
+            Tab::Dashboard,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
+        (
+            "6-dashboard-hold-still-min-size",
+            tabs::tobii::fake_neutral_status(0.4),
+            Tab::Dashboard,
+            CameraConfig::MIN_WINDOW,
+        ),
+        (
+            "7-tobii-tab-hold-still",
+            tabs::tobii::fake_neutral_status(0.4),
+            Tab::Tobii,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
+        (
+            "8-tobii-tab-starting",
+            tabs::tobii::fake_status(TobiiState::Opening),
+            Tab::Tobii,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
+        (
+            "9-keybinds",
+            tabs::tobii::fake_status(TobiiState::Streaming),
+            Tab::Keybinds,
+            CameraConfig::DEFAULT_WINDOW,
+        ),
     ];
     for (name, status, tab, size) in shots {
         let mut app = tobii_app_with(&home, status);
         app.active_tab = tab;
-        rasterize(&mut app, size, 1.5).save(dir.join(format!("{name}.png"))).expect("save png");
+        rasterize(&mut app, size, 1.5)
+            .save(dir.join(format!("{name}.png")))
+            .expect("save png");
     }
 }

@@ -80,25 +80,31 @@ pub(crate) struct ZGate {
 impl ZGate {
     pub(crate) fn new() -> Self {
         let enabled = !headtrack_core::env_flag_off("HEADTRACK_Z_GATE");
-        let trace = std::env::var("HEADTRACK_Z_GATE_TRACE").ok().and_then(|path| {
-            match std::fs::File::create(&path) {
-                Ok(f) => {
-                    let mut w = std::io::BufWriter::new(f);
-                    let _ = writeln!(w, "# z_gate={}", if enabled { "on" } else { "off" });
-                    let _ = writeln!(w, "ts_us,z_in,z_out,held,conf,yaw,pitch");
-                    // Flush the header now: a session ends with Ctrl-C, which
-                    // skips Drop, and a run short enough to lose its buffer is
-                    // exactly the kind you re-run wondering what went wrong.
-                    let _ = w.flush();
-                    tracing::info!("HEADTRACK_Z_GATE_TRACE — per-sample Z gate trace -> {path}");
-                    Some(w)
+        let trace = std::env::var("HEADTRACK_Z_GATE_TRACE")
+            .ok()
+            .and_then(|path| {
+                match std::fs::File::create(&path) {
+                    Ok(f) => {
+                        let mut w = std::io::BufWriter::new(f);
+                        let _ = writeln!(w, "# z_gate={}", if enabled { "on" } else { "off" });
+                        let _ = writeln!(w, "ts_us,z_in,z_out,held,conf,yaw,pitch");
+                        // Flush the header now: a session ends with Ctrl-C, which
+                        // skips Drop, and a run short enough to lose its buffer is
+                        // exactly the kind you re-run wondering what went wrong.
+                        let _ = w.flush();
+                        tracing::info!(
+                            "HEADTRACK_Z_GATE_TRACE — per-sample Z gate trace -> {path}"
+                        );
+                        Some(w)
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "HEADTRACK_Z_GATE_TRACE set but could not create {path}: {e}"
+                        );
+                        None
+                    }
                 }
-                Err(e) => {
-                    tracing::warn!("HEADTRACK_Z_GATE_TRACE set but could not create {path}: {e}");
-                    None
-                }
-            }
-        });
+            });
         Self {
             enabled,
             trace,
@@ -114,7 +120,13 @@ impl ZGate {
     /// Filter one Z sample (mm, canonical convention). Returns
     /// `(z_out, held)` — `held` is true when the sample was rejected and the
     /// previous output re-emitted (stats counter).
-    pub(crate) fn filter(&mut self, z_meas: f32, yaw_deg: f32, pitch_deg: f32, ts_us: u64) -> (f32, bool) {
+    pub(crate) fn filter(
+        &mut self,
+        z_meas: f32,
+        yaw_deg: f32,
+        pitch_deg: f32,
+        ts_us: u64,
+    ) -> (f32, bool) {
         let (z_out, held) = self.filter_inner(z_meas, yaw_deg, pitch_deg, ts_us);
         if let Some(w) = self.trace.as_mut() {
             let c = confidence(yaw_deg, pitch_deg);
@@ -135,7 +147,13 @@ impl ZGate {
 
     /// The gate proper. Split out so [`Self::filter`] can record every return
     /// path without threading the trace through four of them.
-    fn filter_inner(&mut self, z_meas: f32, yaw_deg: f32, pitch_deg: f32, ts_us: u64) -> (f32, bool) {
+    fn filter_inner(
+        &mut self,
+        z_meas: f32,
+        yaw_deg: f32,
+        pitch_deg: f32,
+        ts_us: u64,
+    ) -> (f32, bool) {
         if !self.enabled || !z_meas.is_finite() {
             return (z_meas, false);
         }
@@ -178,7 +196,6 @@ impl ZGate {
             (self.last_out, true)
         }
     }
-
 }
 
 #[cfg(test)]
@@ -205,7 +222,10 @@ mod tests {
     fn transparent_in_normal_envelope() {
         let mut g = gate();
         let mut ts = 0;
-        for (i, z) in [-600.0f32, -602.0, -599.5, -605.0, -601.0].iter().enumerate() {
+        for (i, z) in [-600.0f32, -602.0, -599.5, -605.0, -601.0]
+            .iter()
+            .enumerate()
+        {
             ts += FRAME_US;
             let (out, held) = g.filter(*z, 3.0, -5.0, ts);
             assert!(!held, "frame {i} held");
@@ -258,7 +278,10 @@ mod tests {
             let (out, held) = g.filter(fed, 0.0, 0.0, ts);
             if !held {
                 accepted = true;
-                assert!((out - fed).abs() < 1e-4, "resynced to the new level: {out} vs {fed}");
+                assert!(
+                    (out - fed).abs() < 1e-4,
+                    "resynced to the new level: {out} vs {fed}"
+                );
                 break;
             }
         }
@@ -273,7 +296,10 @@ mod tests {
         g.filter(-600.0, 35.0, -25.0, FRAME_US);
         let (out, held) = g.filter(-590.0, 35.0, -25.0, 2 * FRAME_US); // +10mm, plausible
         assert!(!held);
-        assert!(out < -590.0 && out > -600.0, "damped between old and new: {out}");
+        assert!(
+            out < -590.0 && out > -600.0,
+            "damped between old and new: {out}"
+        );
         let c = confidence(35.0, -25.0);
         assert!((out - (-600.0 + c * 10.0)).abs() < 1e-3);
     }
@@ -288,7 +314,9 @@ mod tests {
         let path = std::env::temp_dir().join(format!("ht-zgate-trace-{}.csv", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let mut g = gate();
-        g.trace = Some(std::io::BufWriter::new(std::fs::File::create(&path).expect("temp file")));
+        g.trace = Some(std::io::BufWriter::new(
+            std::fs::File::create(&path).expect("temp file"),
+        ));
 
         g.filter(-600.0, 0.0, 0.0, FRAME_US);
         let (_, held) = g.filter(-130.0, 0.0, 0.0, 2 * FRAME_US); // +470mm: impossible
@@ -296,15 +324,24 @@ mod tests {
         drop(g);
 
         let body = std::fs::read_to_string(&path).expect("trace readable");
-        let rows: Vec<&str> = body.lines().filter(|l| !l.starts_with('#') && !l.is_empty()).collect();
+        let rows: Vec<&str> = body
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.is_empty())
+            .collect();
         assert_eq!(rows.len(), 2, "one row per sample, held or not");
 
         let f: Vec<&str> = rows[1].split(',').collect();
         assert_eq!(f[3], "1", "held flag must be set");
         let z_in: f32 = f[1].parse().expect("z_in");
         let z_out: f32 = f[2].parse().expect("z_out");
-        assert!((z_in - -130.0).abs() < 0.01, "z_in is the raw measurement, got {z_in}");
-        assert!((z_out - -600.0).abs() < 0.01, "z_out is the held output, got {z_out}");
+        assert!(
+            (z_in - -130.0).abs() < 0.01,
+            "z_in is the raw measurement, got {z_in}"
+        );
+        assert!(
+            (z_out - -600.0).abs() < 0.01,
+            "z_out is the held output, got {z_out}"
+        );
 
         let _ = std::fs::remove_file(&path);
     }

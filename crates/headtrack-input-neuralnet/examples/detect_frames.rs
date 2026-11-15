@@ -25,10 +25,9 @@ enum Det {
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
     let which = args.next().unwrap_or_else(|| "yunet".into());
-    let dir: PathBuf = args
-        .next()
-        .map(PathBuf::from)
-        .ok_or_else(|| anyhow::anyhow!("usage: detect_frames <scrfd|yunet> <frame-dir> [models-dir]"))?;
+    let dir: PathBuf = args.next().map(PathBuf::from).ok_or_else(|| {
+        anyhow::anyhow!("usage: detect_frames <scrfd|yunet> <frame-dir> [models-dir]")
+    })?;
     let models: PathBuf = args
         .next()
         .map(PathBuf::from)

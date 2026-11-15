@@ -28,14 +28,19 @@ impl IpcServer {
         // Clean up a stale socket from a previous run.
         let _ = tokio::fs::remove_file(socket_path).await;
 
-        let listener =
-            UnixListener::bind(socket_path).context("binding IPC socket")?;
+        let listener = UnixListener::bind(socket_path).context("binding IPC socket")?;
 
         let (tx, _) = broadcast::channel(CHANNEL_CAPACITY);
 
         info!("IPC server bound to {}", socket_path.display());
 
-        Ok((Self { listener, tx: tx.clone() }, tx))
+        Ok((
+            Self {
+                listener,
+                tx: tx.clone(),
+            },
+            tx,
+        ))
     }
 
     /// Accept connections forever.  Each connection is handled in its own task.

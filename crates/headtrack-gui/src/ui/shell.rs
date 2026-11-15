@@ -55,7 +55,10 @@ pub const RAIL_FULL_H: f32 = 622.0;
 pub fn brand_block_compact(ui: &mut egui::Ui, logo: egui::load::SizedTexture) {
     ui.horizontal(|ui| {
         ui.add_space(4.0);
-        ui.add(egui::Image::new(egui::load::SizedTexture::new(logo.id, egui::vec2(36.0, 36.0))));
+        ui.add(egui::Image::new(egui::load::SizedTexture::new(
+            logo.id,
+            egui::vec2(36.0, 36.0),
+        )));
         ui.add_space(4.0);
         ui.add(egui::Label::new(wordmark(theme::TEXT_MD)).extend());
     });
@@ -83,7 +86,11 @@ pub fn nav_item(ui: &mut egui::Ui, glyph: &str, label: &str, active: bool) -> eg
     let background = ui.painter().add(egui::Shape::Noop);
     let response = ui.add(
         egui::Button::new(job)
-            .fill(if active { theme::PANEL_HI } else { Color32::TRANSPARENT })
+            .fill(if active {
+                theme::PANEL_HI
+            } else {
+                Color32::TRANSPARENT
+            })
             .stroke(Stroke::NONE)
             .corner_radius(CornerRadius::same(4))
             .min_size(egui::vec2(ui.available_width(), NAV_ROW_H)),
@@ -96,7 +103,12 @@ pub fn nav_item(ui: &mut egui::Ui, glyph: &str, label: &str, active: bool) -> eg
     }
     super::controls::focus_outline(ui, &response);
     response.widget_info(|| {
-        egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, ui.is_enabled(), active, label)
+        egui::WidgetInfo::selected(
+            egui::WidgetType::SelectableLabel,
+            ui.is_enabled(),
+            active,
+            label,
+        )
     });
 
     if active {
@@ -118,8 +130,11 @@ pub fn nav_separator(ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.add_space(8.0);
         let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 1.0), egui::Sense::hover());
-        ui.painter()
-            .hline(rect.x_range(), rect.center().y, Stroke::new(1.0_f32, theme::STROKE_SOFT));
+        ui.painter().hline(
+            rect.x_range(),
+            rect.center().y,
+            Stroke::new(1.0_f32, theme::STROKE_SOFT),
+        );
     });
     ui.add_space(9.0);
 }
@@ -127,8 +142,11 @@ pub fn nav_separator(ui: &mut egui::Ui) {
 /// Vertical hairline between status-bar items.
 pub fn status_sep(ui: &mut egui::Ui) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(1.0, 12.0), egui::Sense::hover());
-    ui.painter()
-        .vline(rect.center().x, rect.y_range(), Stroke::new(1.0_f32, theme::STROKE));
+    ui.painter().vline(
+        rect.center().x,
+        rect.y_range(),
+        Stroke::new(1.0_f32, theme::STROKE),
+    );
 }
 
 /// Status-bar item with a leading state dot.

@@ -17,7 +17,10 @@ pub(crate) fn action_defs() -> Vec<(&'static str, &'static str)> {
     let mut defs = vec![("recenter", "Recenter head tracking")];
     #[cfg(feature = "output-simconnect")]
     defs.extend_from_slice(&[
-        ("msfs-camera-toggle", "MSFS: release / re-grab the camera (external views)"),
+        (
+            "msfs-camera-toggle",
+            "MSFS: release / re-grab the camera (external views)",
+        ),
         ("msfs-seat-reset", "MSFS: reset seat position"),
         ("msfs-seat-left", "MSFS: seat left 1 cm"),
         ("msfs-seat-right", "MSFS: seat right 1 cm"),
@@ -40,17 +43,35 @@ pub(crate) fn cmd_for(id: &str) -> Option<EngineCmd> {
         // EYEPOINT +X = LEFT (verified in-cockpit 2026-08-01) — hence the
         // inverted-looking signs on the X axis.
         #[cfg(feature = "output-simconnect")]
-        "msfs-seat-left" => Some(EngineCmd::MsfsSeatNudge { axis: 0, delta_m: SEAT_STEP }),
+        "msfs-seat-left" => Some(EngineCmd::MsfsSeatNudge {
+            axis: 0,
+            delta_m: SEAT_STEP,
+        }),
         #[cfg(feature = "output-simconnect")]
-        "msfs-seat-right" => Some(EngineCmd::MsfsSeatNudge { axis: 0, delta_m: -SEAT_STEP }),
+        "msfs-seat-right" => Some(EngineCmd::MsfsSeatNudge {
+            axis: 0,
+            delta_m: -SEAT_STEP,
+        }),
         #[cfg(feature = "output-simconnect")]
-        "msfs-seat-down" => Some(EngineCmd::MsfsSeatNudge { axis: 1, delta_m: -SEAT_STEP }),
+        "msfs-seat-down" => Some(EngineCmd::MsfsSeatNudge {
+            axis: 1,
+            delta_m: -SEAT_STEP,
+        }),
         #[cfg(feature = "output-simconnect")]
-        "msfs-seat-up" => Some(EngineCmd::MsfsSeatNudge { axis: 1, delta_m: SEAT_STEP }),
+        "msfs-seat-up" => Some(EngineCmd::MsfsSeatNudge {
+            axis: 1,
+            delta_m: SEAT_STEP,
+        }),
         #[cfg(feature = "output-simconnect")]
-        "msfs-seat-back" => Some(EngineCmd::MsfsSeatNudge { axis: 2, delta_m: -SEAT_STEP }),
+        "msfs-seat-back" => Some(EngineCmd::MsfsSeatNudge {
+            axis: 2,
+            delta_m: -SEAT_STEP,
+        }),
         #[cfg(feature = "output-simconnect")]
-        "msfs-seat-fwd" => Some(EngineCmd::MsfsSeatNudge { axis: 2, delta_m: SEAT_STEP }),
+        "msfs-seat-fwd" => Some(EngineCmd::MsfsSeatNudge {
+            axis: 2,
+            delta_m: SEAT_STEP,
+        }),
         _ => None,
     }
 }

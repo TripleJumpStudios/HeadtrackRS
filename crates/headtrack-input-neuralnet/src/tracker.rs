@@ -1,21 +1,25 @@
+use crate::capture_errors::{is_device_gone, CaptureErrors, CaptureStep};
 use anyhow::{Context, Result};
 use headtrack_core::{config::CameraConfig, RawPose};
 use image::{GrayImage, ImageBuffer, Rgb};
 use nokhwa::{
     pixel_format::RgbFormat,
-    utils::{CameraIndex, CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution},
+    utils::{
+        CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
+    },
     Camera,
 };
 use std::{path::PathBuf, time::Instant};
 use tracing::{debug, info, warn};
-use crate::capture_errors::{is_device_gone, CaptureErrors, CaptureStep};
 
 use crate::{
     image_proc::to_gray,
     landmark_position::position_from_eyes,
     optical_flow::track_landmarks,
     pnp::{pose_to_canonical, CameraIntrinsics, PnpSolver},
-    pose_estimator_6drepnet::{HeadRotation, PoseEstimator6DRepNet, MODEL_FILENAME as MODEL_6DREPNET},
+    pose_estimator_6drepnet::{
+        HeadRotation, PoseEstimator6DRepNet, MODEL_FILENAME as MODEL_6DREPNET,
+    },
     scrfd_detector::{Detection, ScrfdDetector, MODEL_FILENAME as MODEL_SCRFD},
     v4l2_capture::V4l2Camera,
 };
@@ -96,7 +100,6 @@ const REDETECT_FRAMES_MIN: u32 = 10;
 /// drift-triggered path remains.
 const REDETECT_FRAMES_MAX: u32 = 100_000;
 
-
 /// Reprojection RMS threshold (pixels). If PnP's converged solution has RMS
 /// above this for 3 consecutive frames, OF landmarks have drifted off real
 /// face features and we trigger an immediate SCRFD re-detect even before
@@ -164,7 +167,9 @@ impl RotationHold {
     /// [`ROT_ERROR_WARN_INTERVAL`] with the running total.
     fn note_error(&mut self, e: &anyhow::Error) {
         self.errors += 1;
-        let due = self.last_warn.is_none_or(|t| t.elapsed() >= ROT_ERROR_WARN_INTERVAL);
+        let due = self
+            .last_warn
+            .is_none_or(|t| t.elapsed() >= ROT_ERROR_WARN_INTERVAL);
         if due {
             warn!(
                 "6DRepNet inference error: {e:#} — holding the last rotation \
@@ -250,7 +255,6 @@ impl PipelineStats {
     }
 }
 
-
 /// Selects the rotation source for the SCRFD-driven (PnP) pipeline.
 ///
 /// Default `SixDRepNet`: rotation comes from the learned head-pose ONNX model
@@ -329,8 +333,10 @@ fn read_capture_resolution(default: (u32, u32)) -> (u32, u32) {
         .filter(|&(w, h): &(u32, u32)| w >= 160 && h >= 120 && w <= 7680 && h <= 4320);
     match parsed {
         Some(res) => {
-            info!("HEADTRACK_CAPTURE_RES={raw:?} — requesting {}×{} instead of {}×{}",
-                  res.0, res.1, default.0, default.1);
+            info!(
+                "HEADTRACK_CAPTURE_RES={raw:?} — requesting {}×{} instead of {}×{}",
+                res.0, res.1, default.0, default.1
+            );
             res
         }
         None => {
@@ -343,7 +349,12 @@ fn read_capture_resolution(default: (u32, u32)) -> (u32, u32) {
 fn read_depth_cue() -> crate::landmark_position::DepthCue {
     use crate::landmark_position::DepthCue as C;
     let raw = std::env::var("HEADTRACK_DEPTH_CUE").ok();
-    let cue = match raw.as_deref().map(str::trim).map(str::to_ascii_lowercase).as_deref() {
+    let cue = match raw
+        .as_deref()
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
         None | Some("") | Some("diagonals") => C::Diagonals,
         Some("ipd") => C::Ipd,
         Some("nose-mouth") => C::NoseMouth,
@@ -362,8 +373,11 @@ fn read_depth_cue() -> crate::landmark_position::DepthCue {
         }
     };
     if cue != C::Diagonals {
-        info!("HEADTRACK_DEPTH_CUE={cue:?} — depth from {} landmark pair(s) instead of \
-               the default diagonals", cue.pairs().len());
+        info!(
+            "HEADTRACK_DEPTH_CUE={cue:?} — depth from {} landmark pair(s) instead of \
+               the default diagonals",
+            cue.pairs().len()
+        );
     }
     cue
 }
@@ -413,7 +427,6 @@ impl TrackerConfig {
             camera_resolution: cam_cfg.camera_resolution,
         }
     }
-
 }
 
 /// Abstraction over camera backends — nokhwa for most cameras, raw V4L2 for
@@ -533,7 +546,10 @@ fn try_load_6drepnet(
             Some(p)
         }
         Err(e) => {
-            warn!("6DRepNet model failed to load ({:?}): {e:#} — falling back to PnP rotation", path);
+            warn!(
+                "6DRepNet model failed to load ({:?}): {e:#} — falling back to PnP rotation",
+                path
+            );
             None
         }
     }
@@ -726,7 +742,11 @@ impl Tracker {
         let scrfd = load_scrfd(model_dir)?;
         let rot_source = read_rotation_source();
         let pose_6drepnet = try_load_6drepnet(model_dir, rot_source);
-        let effective_rot_source = if pose_6drepnet.is_some() { rot_source } else { RotationSource::Pnp };
+        let effective_rot_source = if pose_6drepnet.is_some() {
+            rot_source
+        } else {
+            RotationSource::Pnp
+        };
         info!("rotation source: {:?}", effective_rot_source);
         let pnp = make_pnp_solver();
 
@@ -744,13 +764,9 @@ impl Tracker {
             info!("v4l2: skipping nokhwa for this camera (known V4L2-preferred device)");
             None
         } else {
-            let req = RequestedFormat::new::<RgbFormat>(
-                RequestedFormatType::Closest(CameraFormat::new(
-                    Resolution::new(res_w, res_h),
-                    FrameFormat::MJPEG,
-                    60,
-                )),
-            );
+            let req = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(
+                CameraFormat::new(Resolution::new(res_w, res_h), FrameFormat::MJPEG, 60),
+            ));
             match Camera::new(CameraIndex::Index(cfg.camera_index), req) {
                 Ok(mut cam) => {
                     cam.open_stream().context("starting webcam stream")?;
@@ -758,7 +774,11 @@ impl Tracker {
                     // Camera still auto-exposes via gain/ISO within the frame budget.
                     crate::v4l2_capture::disable_framerate_priority(cfg.camera_index);
                     let actual_res = cam.resolution();
-                    info!("nokhwa: camera opened {}×{}", actual_res.width(), actual_res.height());
+                    info!(
+                        "nokhwa: camera opened {}×{}",
+                        actual_res.width(),
+                        actual_res.height()
+                    );
                     Some(CameraBackend::Nokhwa(cam))
                 }
                 Err(nokhwa_err) => {
@@ -822,7 +842,11 @@ impl Tracker {
         let scrfd = load_scrfd(model_dir)?;
         let rot_source = read_rotation_source();
         let pose_6drepnet = try_load_6drepnet(model_dir, rot_source);
-        let effective_rot_source = if pose_6drepnet.is_some() { rot_source } else { RotationSource::Pnp };
+        let effective_rot_source = if pose_6drepnet.is_some() {
+            rot_source
+        } else {
+            RotationSource::Pnp
+        };
         info!("rotation source: {:?}", effective_rot_source);
         let pnp = make_pnp_solver();
 
@@ -868,7 +892,6 @@ impl Tracker {
         self.pose_6drepnet.is_some() && self.rot_source == RotationSource::SixDRepNet
     }
 
-
     /// Capture one frame and run the inference pipeline.
     ///
     /// Returns a `RawPose` on success, `None` if no head is found or an
@@ -891,12 +914,19 @@ impl Tracker {
 
         let t_cap = t0.elapsed();
         if t_cap.as_millis() > 300 {
-            warn!("webcam stall: capture took {:.0}ms (camera may have frozen)", t_cap.as_millis());
+            warn!(
+                "webcam stall: capture took {:.0}ms (camera may have frozen)",
+                t_cap.as_millis()
+            );
         }
         let gray = to_gray(&rgb_frame);
         let t_gray = t0.elapsed();
 
-        let rgb_for_inference = if self.needs_rgb_every_frame() { Some(&rgb_frame) } else { None };
+        let rgb_for_inference = if self.needs_rgb_every_frame() {
+            Some(&rgb_frame)
+        } else {
+            None
+        };
         let result = self.run_inference(gray, rgb_for_inference);
         // rgb_frame dropped here once inference is done.
         drop(rgb_frame);
@@ -987,7 +1017,11 @@ impl Tracker {
         self.frame_facts.begin(self.last_landmarks.as_ref());
         let pose = self.run_inference_inner(gray, rgb);
         let timestamp_us = self.start.elapsed().as_micros() as u64;
-        let Self { frame_dump, frame_facts, .. } = self;
+        let Self {
+            frame_dump,
+            frame_facts,
+            ..
+        } = self;
         if let Some(d) = frame_dump.as_mut() {
             d.write(rgb, pose.as_ref(), frame_facts, timestamp_us);
         }
@@ -1081,7 +1115,6 @@ impl Tracker {
         let (mut yaw, mut pitch, mut roll, x_mm, y_mm, z_mm) =
             pose_to_canonical(&pnp_result.r, &pnp_result.t);
 
-
         // Drift-based re-detect trigger (Layer 2 of the tracking-loss detector,
         // and the only drift trigger there is).
         //
@@ -1153,49 +1186,49 @@ impl Tracker {
         // Captured here while `landmarks` is still owned (it is moved below into
         // `last_landmarks`); applied at the RawPose build. `HEADTRACK_TRANS_SOURCE
         // =pnp` disables this and keeps the PnP tvec.
-        let landmark_xyz = if self.trans_source == TranslationSource::Landmark
-            && landmarks.len() >= 2
-        {
-            if self.depth_cue == crate::landmark_position::DepthCue::Ipd {
-                Some(position_from_eyes(
-                    landmarks[0],
-                    landmarks[1],
-                    (img_w, img_h),
-                    self.fov_diag_deg,
-                    yaw,
-                ))
-            } else {
-                // All three translation axes come from one robust fit over all
-                // five landmarks. X/Y were previously the eye centroid — the
-                // *same two points* IPD uses — back-projected at the IPD depth,
-                // so a single bad eye keypoint corrupted X, Y and Z together and
-                // depth noise multiplied into the lateral axes. Falls back to the
-                // eye-centroid path if too few pairs survive the guards.
-                let rot = crate::landmark_position::rotation_from_canonical(yaw, pitch, roll);
-                Some(crate::landmark_position::translation_from_landmarks(
-                    &landmarks,
-                    &rot,
-                    (img_w, img_h),
-                    (intrinsics.fx, intrinsics.fy),
-                    self.depth_cue,
-                )
-                .map_or_else(
-                    || {
-                        position_from_eyes(
-                            landmarks[0],
-                            landmarks[1],
+        let landmark_xyz =
+            if self.trans_source == TranslationSource::Landmark && landmarks.len() >= 2 {
+                if self.depth_cue == crate::landmark_position::DepthCue::Ipd {
+                    Some(position_from_eyes(
+                        landmarks[0],
+                        landmarks[1],
+                        (img_w, img_h),
+                        self.fov_diag_deg,
+                        yaw,
+                    ))
+                } else {
+                    // All three translation axes come from one robust fit over all
+                    // five landmarks. X/Y were previously the eye centroid — the
+                    // *same two points* IPD uses — back-projected at the IPD depth,
+                    // so a single bad eye keypoint corrupted X, Y and Z together and
+                    // depth noise multiplied into the lateral axes. Falls back to the
+                    // eye-centroid path if too few pairs survive the guards.
+                    let rot = crate::landmark_position::rotation_from_canonical(yaw, pitch, roll);
+                    Some(
+                        crate::landmark_position::translation_from_landmarks(
+                            &landmarks,
+                            &rot,
                             (img_w, img_h),
-                            self.fov_diag_deg,
-                            yaw,
+                            (intrinsics.fx, intrinsics.fy),
+                            self.depth_cue,
                         )
-                    },
-                    |(x, y, z, _quality)| (x, y, z),
-                ))
-            }
-        } else {
-            None
-        };
-
+                        .map_or_else(
+                            || {
+                                position_from_eyes(
+                                    landmarks[0],
+                                    landmarks[1],
+                                    (img_w, img_h),
+                                    self.fov_diag_deg,
+                                    yaw,
+                                )
+                            },
+                            |(x, y, z, _quality)| (x, y, z),
+                        ),
+                    )
+                }
+            } else {
+                None
+            };
 
         // ── Update state ────────────────────────────────────────────────────
         // Four-branch precedence (top wins): SCRFD authoritative, then
@@ -1214,10 +1247,9 @@ impl Tracker {
         // SCRFD inference, collapsing the frame rate. Honour a drift trip only
         // once per MIN_FRAMES_BETWEEN_FORCED_REDETECT; in between, keep riding
         // optical flow.
-        self.frames_since_forced_redetect =
-            self.frames_since_forced_redetect.saturating_add(1);
-        let layer2_allowed = layer2_trip
-            && self.frames_since_forced_redetect >= MIN_FRAMES_BETWEEN_FORCED_REDETECT;
+        self.frames_since_forced_redetect = self.frames_since_forced_redetect.saturating_add(1);
+        let layer2_allowed =
+            layer2_trip && self.frames_since_forced_redetect >= MIN_FRAMES_BETWEEN_FORCED_REDETECT;
         if layer2_trip && !layer2_allowed {
             self.stats.suppressed_redetects += 1;
         }
@@ -1251,7 +1283,6 @@ impl Tracker {
 
         let timestamp_us = self.start.elapsed().as_micros() as u64;
 
-
         // Use the stable-landmark translation captured above when enabled,
         // else the PnP `tvec`.
         let (x, y, z) = landmark_xyz.unwrap_or((x_mm, y_mm, z_mm));
@@ -1280,7 +1311,6 @@ impl Tracker {
         })
     }
 
-
     /// Update `stats` with this frame's inference time and emit the rolling
     /// summary every [`STATS_LOG_INTERVAL`] frames. Cheap — just a `Duration`
     /// subtraction and a few u32 increments on the hot path.
@@ -1298,8 +1328,16 @@ impl Tracker {
 
         let s = &self.stats;
         let det = self.scrfd.name();
-        let avg_us = if s.frames > 0 { s.inference_us_total / s.frames as u64 } else { 0 };
-        let avg_rms = if s.rms_count > 0 { s.rms_sum / s.rms_count as f64 } else { 0.0 };
+        let avg_us = if s.frames > 0 {
+            s.inference_us_total / s.frames as u64
+        } else {
+            0
+        };
+        let avg_rms = if s.rms_count > 0 {
+            s.rms_sum / s.rms_count as f64
+        } else {
+            0.0
+        };
         // Once per second, every second, for the life of the process — this is
         // the per-frame diagnostic tier, not a lifecycle event.
         debug!(
@@ -1323,12 +1361,14 @@ impl Tracker {
         self.stats.reset();
     }
 
-
     /// Run SCRFD on `rgb`. Logs and returns `None` on any error or no-face
     /// outcome. Resets the PnP warm-start on success so the solver starts
     /// fresh from the new landmark set rather than dragging stale rotation
     /// state into a disjoint head pose.
-    fn run_scrfd(&mut self, rgb: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Option<crate::scrfd_detector::FaceDetection> {
+    fn run_scrfd(
+        &mut self,
+        rgb: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+    ) -> Option<crate::scrfd_detector::FaceDetection> {
         let scrfd = &mut self.scrfd;
         match scrfd.detect(rgb) {
             Ok(Some(f)) => {
@@ -1386,7 +1426,9 @@ impl Tracker {
         let step = self.capture_errors.error(now, is_device_gone(e));
         match step {
             CaptureStep::Retry { warn: true, .. } => {
-                warn!("webcam capture error: {e:#} (retrying with backoff; further errors at DEBUG)");
+                warn!(
+                    "webcam capture error: {e:#} (retrying with backoff; further errors at DEBUG)"
+                );
             }
             CaptureStep::Retry { warn: false, .. } => debug!("webcam capture error: {e:#}"),
             CaptureStep::GiveUp => warn!(
@@ -1412,7 +1454,7 @@ impl Tracker {
 /// or format negotiation mismatch.  Matched case-insensitively against the
 /// sysfs device name.
 const V4L2_PREFERRED: &[&str] = &[
-    "delan",  // Delan Cam 1: duplicate YUYV intervals crash nokhwa; V4L2 is ~40% faster
+    "delan", // Delan Cam 1: duplicate YUYV intervals crash nokhwa; V4L2 is ~40% faster
 ];
 
 /// Synthesise a head bounding box from facial landmarks, used when the
@@ -1456,16 +1498,10 @@ fn bbox_from_landmarks(kps: &[(f32, f32)]) -> Option<Detection> {
     })
 }
 
-
-
-
-
 /// Return true if this camera index should skip nokhwa and use raw V4L2.
 fn should_force_v4l2(index: u32) -> bool {
-    let name = std::fs::read_to_string(
-        format!("/sys/class/video4linux/video{index}/name")
-    )
-    .unwrap_or_default();
+    let name = std::fs::read_to_string(format!("/sys/class/video4linux/video{index}/name"))
+        .unwrap_or_default();
     let lower = name.trim().to_lowercase();
     V4L2_PREFERRED.iter().any(|key| lower.contains(key))
 }
@@ -1492,8 +1528,15 @@ mod model_requirement_tests {
     #[test]
     fn redetect_frames_override_parses_and_clamps() {
         // Absent, empty, whitespace, garbage, negative, overflow → the default.
-        for raw in [None, Some(""), Some("   "), Some("abc"), Some("-1"), Some("1e9"),
-                    Some("99999999999999999999")] {
+        for raw in [
+            None,
+            Some(""),
+            Some("   "),
+            Some("abc"),
+            Some("-1"),
+            Some("1e9"),
+            Some("99999999999999999999"),
+        ] {
             assert_eq!(
                 redetect_frames_from(raw),
                 REDETECT_THRESHOLD,
@@ -1508,7 +1551,10 @@ mod model_requirement_tests {
         // the tracker starting.
         assert_eq!(redetect_frames_from(Some("0")), REDETECT_FRAMES_MIN);
         assert_eq!(redetect_frames_from(Some("5")), REDETECT_FRAMES_MIN);
-        assert_eq!(redetect_frames_from(Some("4000000000")), REDETECT_FRAMES_MAX);
+        assert_eq!(
+            redetect_frames_from(Some("4000000000")),
+            REDETECT_FRAMES_MAX
+        );
     }
 
     /// A temp model directory that holds nothing.
@@ -1543,10 +1589,19 @@ mod model_requirement_tests {
                 .downcast_ref::<MissingModel>()
                 .expect("must be a MissingModel so the engine can tell it from a camera failure");
             assert_eq!(missing.filename, crate::yunet_detector::MODEL_FILENAME);
-            assert!(missing.note.is_none(), "a bundled model needs no opt-in note");
+            assert!(
+                missing.note.is_none(),
+                "a bundled model needs no opt-in note"
+            );
             let text = format!("{missing}");
-            assert!(text.contains(crate::yunet_detector::MODEL_FILENAME), "names the model: {text}");
-            assert!(text.contains("HEADTRACK_MODELS"), "names the override: {text}");
+            assert!(
+                text.contains(crate::yunet_detector::MODEL_FILENAME),
+                "names the model: {text}"
+            );
+            assert!(
+                text.contains("HEADTRACK_MODELS"),
+                "names the override: {text}"
+            );
         }
         let _ = std::fs::remove_dir_all(&empty);
     }
@@ -1557,13 +1612,24 @@ mod model_requirement_tests {
     fn scrfd_opt_in_without_the_file_explains_itself() {
         let empty = empty_model_dir("scrfd");
         let err = missing_model_of(load_detector(&empty, "scrfd"));
-        let missing = err.downcast_ref::<MissingModel>().expect("typed MissingModel");
+        let missing = err
+            .downcast_ref::<MissingModel>()
+            .expect("typed MissingModel");
         assert_eq!(missing.filename, MODEL_SCRFD);
         let text = format!("{missing}");
         assert!(text.contains(MODEL_SCRFD), "names the file: {text}");
-        assert!(text.contains(&empty.display().to_string()), "says where it looked: {text}");
-        assert!(text.contains("model directory"), "says where to put it: {text}");
-        assert!(text.contains("non-commercial"), "states the licence: {text}");
+        assert!(
+            text.contains(&empty.display().to_string()),
+            "says where it looked: {text}"
+        );
+        assert!(
+            text.contains("model directory"),
+            "says where to put it: {text}"
+        );
+        assert!(
+            text.contains("non-commercial"),
+            "states the licence: {text}"
+        );
         let _ = std::fs::remove_dir_all(&empty);
     }
 
@@ -1573,7 +1639,11 @@ mod model_requirement_tests {
         assert_eq!(detector_choice_from(Some("")), "yunet");
         assert_eq!(detector_choice_from(Some("yunet")), "yunet");
         assert_eq!(detector_choice_from(Some(" SCRFD ")), "scrfd");
-        assert_eq!(detector_choice_from(Some("retinaface")), "yunet", "unknown falls back to yunet");
+        assert_eq!(
+            detector_choice_from(Some("retinaface")),
+            "yunet",
+            "unknown falls back to yunet"
+        );
     }
 
     /// The shipped bundle (YuNet + 6DRepNet, no SCRFD) starts the default detector.
@@ -1613,11 +1683,23 @@ mod capture_resolution_tests {
     fn parses_and_rejects() {
         assert_eq!(with(None), DEFAULT, "unset keeps the configured value");
         assert_eq!(with(Some("1920x1080")), (1920, 1080));
-        assert_eq!(with(Some(" 1280 X 720 ")), (1280, 720), "tolerant of spacing and case");
+        assert_eq!(
+            with(Some(" 1280 X 720 ")),
+            (1280, 720),
+            "tolerant of spacing and case"
+        );
 
         // Anything unparseable or implausible must fall back rather than open the
         // camera at a size that will fail or crawl.
-        for bad in ["", "1920", "1920*1080", "abcxdef", "0x0", "8000x5000", "-1x-1"] {
+        for bad in [
+            "",
+            "1920",
+            "1920*1080",
+            "abcxdef",
+            "0x0",
+            "8000x5000",
+            "-1x-1",
+        ] {
             assert_eq!(with(Some(bad)), DEFAULT, "{bad:?} should fall back");
         }
     }

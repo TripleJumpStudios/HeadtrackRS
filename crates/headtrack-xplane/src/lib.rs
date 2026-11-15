@@ -27,16 +27,15 @@ mod ffi;
 mod ipc;
 
 use ffi::{
-    debug, XPLMAppendMenuItem, XPLMAppendMenuSeparator, XPLMCheckMenuItem,
-    XPLMCommandRef, XPLMCreateCommand, XPLMCreateMenu, XPLMCreateWindow_t,
-    XPLMCreateWindowEx, XPLMDataRef, XPLMDestroyWindow, XPLMDrawString, XPLMFindDataRef,
-    XPLMFindPluginsMenu, XPLMGetDatab, XPLMGetDataf, XPLMGetDatai, XPLMGetScreenBoundsGlobal,
-    XPLMGetWindowGeometry, XPLMGetWindowIsVisible, XPLMMenuID, XPLMRegisterCommandHandler,
-    XPLMRegisterFlightLoopCallback, XPLMSetDataf, XPLMSetMenuItemName, XPLMSetWindowIsVisible,
-    XPLMSetWindowPositioningMode, XPLMSetWindowTitle, XPLMUnregisterCommandHandler,
-    XPLMUnregisterFlightLoopCallback, XPLMWindowID, XPLM_CURSOR_DEFAULT, XPLM_FONT_PROPORTIONAL,
-    XPLM_MOUSE_DOWN, XPLM_MOUSE_UP, XPLM_WINDOW_DECORATION_ROUND_RECTANGLE,
-    XPLM_WINDOW_LAYER_FLOATING, XPLM_WINDOW_POSITION_FREE,
+    debug, XPLMAppendMenuItem, XPLMAppendMenuSeparator, XPLMCheckMenuItem, XPLMCommandRef,
+    XPLMCreateCommand, XPLMCreateMenu, XPLMCreateWindowEx, XPLMCreateWindow_t, XPLMDataRef,
+    XPLMDestroyWindow, XPLMDrawString, XPLMFindDataRef, XPLMFindPluginsMenu, XPLMGetDatab,
+    XPLMGetDataf, XPLMGetDatai, XPLMGetScreenBoundsGlobal, XPLMGetWindowGeometry,
+    XPLMGetWindowIsVisible, XPLMMenuID, XPLMRegisterCommandHandler, XPLMRegisterFlightLoopCallback,
+    XPLMSetDataf, XPLMSetMenuItemName, XPLMSetWindowIsVisible, XPLMSetWindowPositioningMode,
+    XPLMSetWindowTitle, XPLMUnregisterCommandHandler, XPLMUnregisterFlightLoopCallback,
+    XPLMWindowID, XPLM_CURSOR_DEFAULT, XPLM_FONT_PROPORTIONAL, XPLM_MOUSE_DOWN, XPLM_MOUSE_UP,
+    XPLM_WINDOW_DECORATION_ROUND_RECTANGLE, XPLM_WINDOW_LAYER_FLOATING, XPLM_WINDOW_POSITION_FREE,
 };
 use headtrack_core::Pose;
 
@@ -110,11 +109,11 @@ const MENU_STATUS: i32 = 12;
 
 // Axis sign corrections — flip any that feel backwards in-sim.
 // +1.0 = pass through, -1.0 = invert.
-const SIGN_YAW:   f32 =  1.0;
-const SIGN_PITCH: f32 =  1.0;
-const SIGN_ROLL:  f32 =  1.0;
-const SIGN_X:     f32 = -1.0;
-const SIGN_Y:     f32 =  1.0;
+const SIGN_YAW: f32 = 1.0;
+const SIGN_PITCH: f32 = 1.0;
+const SIGN_ROLL: f32 = 1.0;
+const SIGN_X: f32 = -1.0;
+const SIGN_Y: f32 = 1.0;
 // SIGN_Z is inverted *and* half-scaled, the only magnitude scale in any output
 // adapter (SimConnect passes position through at /1000.0).
 //
@@ -130,7 +129,7 @@ const SIGN_Y:     f32 =  1.0;
 // and is deliberately not being changed on a guess — the standing rule is bug
 // fixes only while flying (docs/FLIGHT_TEST_LOG.md §4). Provenance for all four
 // adapters: docs/PLUGINS.md.
-const SIGN_Z:     f32 = -0.5;
+const SIGN_Z: f32 = -0.5;
 
 /// Metres the seat moves per command tick (per key-press and per held frame).
 const SEAT_STEP: f32 = 0.01;
@@ -178,7 +177,9 @@ unsafe fn capture_viewport_ref(dr: &DataRefs) {
     let y = XPLMGetDataf(dr.acf_pe_y);
     let z = XPLMGetDataf(dr.acf_pe_z);
     VIEWPORT_REF = [x, y, z];
-    debug(&format!("headtrack-rs: viewport_ref = [{x:.4}, {y:.4}, {z:.4}]\n"));
+    debug(&format!(
+        "headtrack-rs: viewport_ref = [{x:.4}, {y:.4}, {z:.4}]\n"
+    ));
 }
 
 // ── Seat / base offset ──────────────────────────────────────────────────────
@@ -338,7 +339,11 @@ unsafe fn do_recenter() {
 }
 
 /// Bindable recenter command handler — fires once on key-down.
-unsafe extern "C" fn recenter_command(_cmd: XPLMCommandRef, phase: i32, _refcon: *mut c_void) -> i32 {
+unsafe extern "C" fn recenter_command(
+    _cmd: XPLMCommandRef,
+    phase: i32,
+    _refcon: *mut c_void,
+) -> i32 {
     if phase == 0 {
         do_recenter();
     }
@@ -349,13 +354,37 @@ unsafe extern "C" fn recenter_command(_cmd: XPLMCommandRef, phase: i32, _refcon:
 /// They appear in X-Plane → Settings → Keyboard / Joystick under "headtrack-rs".
 unsafe fn register_commands() {
     let specs: [(&str, &str, usize); 7] = [
-        ("headtrack-rs/seat_forward", "HeadtrackRS: move pilot seat forward", 1),
-        ("headtrack-rs/seat_back", "HeadtrackRS: move pilot seat aft", 2),
+        (
+            "headtrack-rs/seat_forward",
+            "HeadtrackRS: move pilot seat forward",
+            1,
+        ),
+        (
+            "headtrack-rs/seat_back",
+            "HeadtrackRS: move pilot seat aft",
+            2,
+        ),
         ("headtrack-rs/seat_up", "HeadtrackRS: move pilot seat up", 3),
-        ("headtrack-rs/seat_down", "HeadtrackRS: move pilot seat down", 4),
-        ("headtrack-rs/seat_left", "HeadtrackRS: move pilot seat left", 5),
-        ("headtrack-rs/seat_right", "HeadtrackRS: move pilot seat right", 6),
-        ("headtrack-rs/seat_reset", "HeadtrackRS: reset pilot seat offset", 7),
+        (
+            "headtrack-rs/seat_down",
+            "HeadtrackRS: move pilot seat down",
+            4,
+        ),
+        (
+            "headtrack-rs/seat_left",
+            "HeadtrackRS: move pilot seat left",
+            5,
+        ),
+        (
+            "headtrack-rs/seat_right",
+            "HeadtrackRS: move pilot seat right",
+            6,
+        ),
+        (
+            "headtrack-rs/seat_reset",
+            "HeadtrackRS: reset pilot seat offset",
+            7,
+        ),
     ];
     let mut stored = Vec::with_capacity(specs.len());
     for (name, desc, code) in specs {
@@ -413,13 +442,13 @@ fn seat_buttons(l: i32, t: i32, r: i32, _b: i32) -> [SeatButton; 7] {
         y1: ccy + hh,
     };
     [
-        mk(1, "FWD", cx, pad_y),                  // forward (-Z)
-        mk(5, "LEFT", cx - colx, pad_y - row),    // left  (-X)
-        mk(7, "CTR", cx, pad_y - row),            // reset
-        mk(6, "RIGHT", cx + colx, pad_y - row),   // right (+X)
-        mk(2, "BACK", cx, pad_y - 2 * row),       // back  (+Z)
-        mk(3, "UP", cx - 34, pad_y - 3 * row),    // height up   (+Y)
-        mk(4, "DN", cx + 34, pad_y - 3 * row),    // height down (-Y)
+        mk(1, "FWD", cx, pad_y),                // forward (-Z)
+        mk(5, "LEFT", cx - colx, pad_y - row),  // left  (-X)
+        mk(7, "CTR", cx, pad_y - row),          // reset
+        mk(6, "RIGHT", cx + colx, pad_y - row), // right (+X)
+        mk(2, "BACK", cx, pad_y - 2 * row),     // back  (+Z)
+        mk(3, "UP", cx - 34, pad_y - 3 * row),  // height up   (+Y)
+        mk(4, "DN", cx + 34, pad_y - 3 * row),  // height down (-Y)
     ]
 }
 
@@ -563,7 +592,11 @@ unsafe fn toggle_seat_window() {
     }
 }
 
-unsafe extern "C" fn seat_panel_command(_cmd: XPLMCommandRef, phase: i32, _refcon: *mut c_void) -> i32 {
+unsafe extern "C" fn seat_panel_command(
+    _cmd: XPLMCommandRef,
+    phase: i32,
+    _refcon: *mut c_void,
+) -> i32 {
     if phase == 0 {
         toggle_seat_window();
     }
@@ -605,7 +638,9 @@ unsafe extern "C" fn flight_loop(
         return -1.0;
     }
 
-    let Some(dr) = DATAREFS.get() else { return -1.0 };
+    let Some(dr) = DATAREFS.get() else {
+        return -1.0;
+    };
 
     // Only write when in 3D cockpit view.
     let view_type = XPLMGetDatai(dr.view_type);
@@ -621,18 +656,22 @@ unsafe extern "C" fn flight_loop(
         MUST_RESET_VIEWPORT.store(false, Ordering::Relaxed);
     }
 
-    let Some(pose_arc) = LATEST_POSE.get() else { return -1.0 };
-    let Ok(guard) = pose_arc.try_lock() else { return -1.0 };
+    let Some(pose_arc) = LATEST_POSE.get() else {
+        return -1.0;
+    };
+    let Ok(guard) = pose_arc.try_lock() else {
+        return -1.0;
+    };
     let Some(pose) = *guard else { return -1.0 };
 
     // Target values with axis signs applied.
     let target = [
-        SIGN_YAW   * pose.yaw,
+        SIGN_YAW * pose.yaw,
         SIGN_PITCH * pose.pitch,
-        SIGN_ROLL  * pose.roll,
-        SIGN_X     * pose.x / 1000.0,
-        SIGN_Y     * pose.y / 1000.0,
-        SIGN_Z     * pose.z / 1000.0,
+        SIGN_ROLL * pose.roll,
+        SIGN_X * pose.x / 1000.0,
+        SIGN_Y * pose.y / 1000.0,
+        SIGN_Z * pose.z / 1000.0,
     ];
 
     // Exponential lerp: close `alpha` fraction of the gap each frame.
@@ -645,12 +684,12 @@ unsafe extern "C" fn flight_loop(
     let vr = VIEWPORT_REF;
     let seat = SEAT_OFFSET;
 
-    XPLMSetDataf(dr.yaw,   SMOOTH_POSE[0]);
+    XPLMSetDataf(dr.yaw, SMOOTH_POSE[0]);
     XPLMSetDataf(dr.pitch, SMOOTH_POSE[1]);
-    XPLMSetDataf(dr.roll,  SMOOTH_POSE[2]);
-    XPLMSetDataf(dr.x,     vr[0] + seat[0] + SMOOTH_POSE[3]);
-    XPLMSetDataf(dr.y,     vr[1] + seat[1] + SMOOTH_POSE[4]);
-    XPLMSetDataf(dr.z,     vr[2] + seat[2] + SMOOTH_POSE[5]);
+    XPLMSetDataf(dr.roll, SMOOTH_POSE[2]);
+    XPLMSetDataf(dr.x, vr[0] + seat[0] + SMOOTH_POSE[3]);
+    XPLMSetDataf(dr.y, vr[1] + seat[1] + SMOOTH_POSE[4]);
+    XPLMSetDataf(dr.z, vr[2] + seat[2] + SMOOTH_POSE[5]);
 
     -1.0 // call every frame
 }
@@ -668,7 +707,11 @@ unsafe fn handle_enable_toggle() {
 
     if let Some(&submenu) = SUBMENU.get() {
         XPLMCheckMenuItem(submenu, MENU_ENABLE, if now_enabled { 1 } else { 0 });
-        let label = if now_enabled { cstr("Enable Tracking") } else { cstr("Tracking Disabled") };
+        let label = if now_enabled {
+            cstr("Enable Tracking")
+        } else {
+            cstr("Tracking Disabled")
+        };
         XPLMSetMenuItemName(submenu, MENU_ENABLE, label.as_ptr(), 0);
     }
 
@@ -677,16 +720,19 @@ unsafe fn handle_enable_toggle() {
             SMOOTH_POSE = [0.0; 6];
             let vr = VIEWPORT_REF;
             let seat = SEAT_OFFSET;
-            XPLMSetDataf(dr.yaw,   0.0);
+            XPLMSetDataf(dr.yaw, 0.0);
             XPLMSetDataf(dr.pitch, 0.0);
-            XPLMSetDataf(dr.roll,  0.0);
-            XPLMSetDataf(dr.x,     vr[0] + seat[0]);
-            XPLMSetDataf(dr.y,     vr[1] + seat[1]);
-            XPLMSetDataf(dr.z,     vr[2] + seat[2]);
+            XPLMSetDataf(dr.roll, 0.0);
+            XPLMSetDataf(dr.x, vr[0] + seat[0]);
+            XPLMSetDataf(dr.y, vr[1] + seat[1]);
+            XPLMSetDataf(dr.z, vr[2] + seat[2]);
         }
     }
 
-    debug(&format!("headtrack-rs: tracking {}\n", if now_enabled { "enabled" } else { "disabled" }));
+    debug(&format!(
+        "headtrack-rs: tracking {}\n",
+        if now_enabled { "enabled" } else { "disabled" }
+    ));
 }
 
 unsafe extern "C" fn menu_handler(_menu_ref: *mut c_void, item_ref: *mut c_void) {
@@ -716,22 +762,25 @@ pub unsafe extern "C" fn XPluginStart(
     out_desc: *mut i8,
 ) -> i32 {
     write_cstr(out_name, "headtrack-rs");
-    write_cstr(out_sig,  "com.headtrack-rs.plugin");
-    write_cstr(out_desc, "6DoF head tracking via webcam — connects to headtrack-rs daemon");
+    write_cstr(out_sig, "com.headtrack-rs.plugin");
+    write_cstr(
+        out_desc,
+        "6DoF head tracking via webcam — connects to headtrack-rs daemon",
+    );
 
     let dr = DataRefs {
         view_type: find_dataref("sim/graphics/view/view_type"),
-        yaw:       find_dataref("sim/graphics/view/pilots_head_psi"),
-        pitch:     find_dataref("sim/graphics/view/pilots_head_the"),
-        roll:      find_dataref("sim/graphics/view/pilots_head_phi"),
-        x:         find_dataref("sim/graphics/view/pilots_head_x"),
-        y:         find_dataref("sim/graphics/view/pilots_head_y"),
-        z:         find_dataref("sim/graphics/view/pilots_head_z"),
-        acf_pe_x:  find_dataref("sim/aircraft/view/acf_peX"),
-        acf_pe_y:  find_dataref("sim/aircraft/view/acf_peY"),
-        acf_pe_z:  find_dataref("sim/aircraft/view/acf_peZ"),
+        yaw: find_dataref("sim/graphics/view/pilots_head_psi"),
+        pitch: find_dataref("sim/graphics/view/pilots_head_the"),
+        roll: find_dataref("sim/graphics/view/pilots_head_phi"),
+        x: find_dataref("sim/graphics/view/pilots_head_x"),
+        y: find_dataref("sim/graphics/view/pilots_head_y"),
+        z: find_dataref("sim/graphics/view/pilots_head_z"),
+        acf_pe_x: find_dataref("sim/aircraft/view/acf_peX"),
+        acf_pe_y: find_dataref("sim/aircraft/view/acf_peY"),
+        acf_pe_z: find_dataref("sim/aircraft/view/acf_peZ"),
         acf_relative_path: find_dataref("sim/aircraft/view/acf_relative_path"),
-        acf_icao:          find_dataref("sim/aircraft/view/acf_ICAO"),
+        acf_icao: find_dataref("sim/aircraft/view/acf_ICAO"),
     };
     DATAREFS.set(dr).ok();
 
@@ -761,26 +810,81 @@ pub unsafe extern "C" fn XPluginStart(
     SUBMENU.set(submenu).ok();
 
     // Enable — checkbox, starts checked
-    XPLMAppendMenuItem(submenu, cstr("Enable Tracking").as_ptr(), MENU_ENABLE as *mut c_void, 0);
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Enable Tracking").as_ptr(),
+        MENU_ENABLE as *mut c_void,
+        0,
+    );
     XPLMCheckMenuItem(submenu, MENU_ENABLE, 1); // checked on start
 
     // Recenter
-    XPLMAppendMenuItem(submenu, cstr("Recenter").as_ptr(), MENU_RECENTER as *mut c_void, 0);
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Recenter").as_ptr(),
+        MENU_RECENTER as *mut c_void,
+        0,
+    );
 
     // Seat position adjust (also exposed as bindable commands below)
     XPLMAppendMenuSeparator(submenu);
-    XPLMAppendMenuItem(submenu, cstr("Seat Adjuster").as_ptr(), MENU_SEAT_PANEL as *mut c_void, 0);
-    XPLMAppendMenuItem(submenu, cstr("Seat Forward").as_ptr(),  MENU_SEAT_FWD   as *mut c_void, 0);
-    XPLMAppendMenuItem(submenu, cstr("Seat Back").as_ptr(),     MENU_SEAT_BACK  as *mut c_void, 0);
-    XPLMAppendMenuItem(submenu, cstr("Seat Up").as_ptr(),       MENU_SEAT_UP    as *mut c_void, 0);
-    XPLMAppendMenuItem(submenu, cstr("Seat Down").as_ptr(),     MENU_SEAT_DOWN  as *mut c_void, 0);
-    XPLMAppendMenuItem(submenu, cstr("Seat Left").as_ptr(),     MENU_SEAT_LEFT  as *mut c_void, 0);
-    XPLMAppendMenuItem(submenu, cstr("Seat Right").as_ptr(),    MENU_SEAT_RIGHT as *mut c_void, 0);
-    XPLMAppendMenuItem(submenu, cstr("Reset Seat").as_ptr(),    MENU_SEAT_RESET as *mut c_void, 0);
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Seat Adjuster").as_ptr(),
+        MENU_SEAT_PANEL as *mut c_void,
+        0,
+    );
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Seat Forward").as_ptr(),
+        MENU_SEAT_FWD as *mut c_void,
+        0,
+    );
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Seat Back").as_ptr(),
+        MENU_SEAT_BACK as *mut c_void,
+        0,
+    );
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Seat Up").as_ptr(),
+        MENU_SEAT_UP as *mut c_void,
+        0,
+    );
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Seat Down").as_ptr(),
+        MENU_SEAT_DOWN as *mut c_void,
+        0,
+    );
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Seat Left").as_ptr(),
+        MENU_SEAT_LEFT as *mut c_void,
+        0,
+    );
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Seat Right").as_ptr(),
+        MENU_SEAT_RIGHT as *mut c_void,
+        0,
+    );
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Reset Seat").as_ptr(),
+        MENU_SEAT_RESET as *mut c_void,
+        0,
+    );
 
     // Separator + status line
     XPLMAppendMenuSeparator(submenu);
-    XPLMAppendMenuItem(submenu, cstr("Status: Disconnected").as_ptr(), MENU_STATUS as *mut c_void, 0);
+    XPLMAppendMenuItem(
+        submenu,
+        cstr("Status: Disconnected").as_ptr(),
+        MENU_STATUS as *mut c_void,
+        0,
+    );
 
     // Bindable commands (X-Plane → Settings → Keyboard / Joystick → "headtrack-rs").
     register_commands();
@@ -835,11 +939,7 @@ const XPLM_MSG_PLANE_LOADED: i32 = 102;
 /// # Safety
 /// Called by X-Plane with a valid message ID; `_param` lifetime is managed by X-Plane.
 #[no_mangle]
-pub unsafe extern "C" fn XPluginReceiveMessage(
-    _from: i32,
-    msg: i32,
-    _param: *mut c_void,
-) {
+pub unsafe extern "C" fn XPluginReceiveMessage(_from: i32, msg: i32, _param: *mut c_void) {
     if msg == XPLM_MSG_PLANE_LOADED {
         // Flag for the flight loop to re-read acf_pe on the next frame.
         // We don't read here because DataRefs may not be populated yet.
@@ -850,7 +950,10 @@ pub unsafe extern "C" fn XPluginReceiveMessage(
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 unsafe fn write_cstr(dst: *mut i8, src: &str) {
-    assert!(src.len() < 256, "X-Plane plugin string buffers are 256 bytes");
+    assert!(
+        src.len() < 256,
+        "X-Plane plugin string buffers are 256 bytes"
+    );
     let bytes = src.as_bytes();
     std::ptr::copy_nonoverlapping(bytes.as_ptr() as *const i8, dst, bytes.len());
     *dst.add(bytes.len()) = 0;

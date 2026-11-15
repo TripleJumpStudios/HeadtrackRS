@@ -334,8 +334,7 @@ pub fn group_rule(ui: &mut egui::Ui, title: &str, unit: &str, color: egui::Color
                 .color(color),
         );
         ui.add(
-            egui::Label::new(RichText::new(unit).size(theme::TEXT_SM).color(theme::DIM))
-                .truncate(),
+            egui::Label::new(RichText::new(unit).size(theme::TEXT_SM).color(theme::DIM)).truncate(),
         );
         let width = ui.available_width();
         if width > 4.0 {
@@ -384,11 +383,18 @@ pub fn elide_to_width(ui: &egui::Ui, text: &str, font: &egui::FontId, max_width:
 /// A path as a monospace value, elided from the left to `max_width`, full path
 /// on hover. The distinguishing part of a path is its tail, so that is what
 /// survives.
-pub fn path_label(ui: &mut egui::Ui, path: &str, max_width: f32, color: egui::Color32) -> egui::Response {
+pub fn path_label(
+    ui: &mut egui::Ui,
+    path: &str,
+    max_width: f32,
+    color: egui::Color32,
+) -> egui::Response {
     let font = egui::FontId::monospace(theme::TEXT_SM);
     let shown = elide_to_width(ui, path, &font, max_width);
-    ui.add(egui::Label::new(RichText::new(shown).font(font).color(color)))
-        .on_hover_text(path)
+    ui.add(egui::Label::new(
+        RichText::new(shown).font(font).color(color),
+    ))
+    .on_hover_text(path)
 }
 
 /// Trim to at most `max` characters, keeping the **end**.
@@ -632,7 +638,10 @@ pub(crate) mod tests {
                         .rect
                         .width()
                 });
-                assert!(width <= room + 0.5, "elided to {width:.1} px for {room:.1} px: {out:?}");
+                assert!(
+                    width <= room + 0.5,
+                    "elided to {width:.1} px for {room:.1} px: {out:?}"
+                );
             }
         });
     }
@@ -653,6 +662,9 @@ pub(crate) mod tests {
         assert_eq!(elide_left("/some/path", 0), "");
         assert_eq!(elide_left("/some/path", 1), "…");
         assert_eq!(elide_left("/some/path", 2).chars().count(), 2);
-        assert_eq!(elide_left("ααααααααααααααααααααααα", 10).chars().count(), 10);
+        assert_eq!(
+            elide_left("ααααααααααααααααααααααα", 10).chars().count(),
+            10
+        );
     }
 }

@@ -136,7 +136,11 @@ impl HeadtrackApp {
                 if ui::tool_button(
                     ui,
                     ph::WRENCH,
-                    if configured { "Re-check SimConnect.xml" } else { "Set up SimConnect.xml" },
+                    if configured {
+                        "Re-check SimConnect.xml"
+                    } else {
+                        "Set up SimConnect.xml"
+                    },
                     ui::ButtonKind::Normal,
                 )
                 .on_hover_text(
@@ -148,7 +152,8 @@ impl HeadtrackApp {
                 {
                     self.msfs_setup_status = Some(match crate::install_simconnect_xml(dir) {
                         Ok(crate::SimConnectSetup::AlreadyConfigured) => (
-                            "Already configured: port 5557 is present, nothing changed.".to_string(),
+                            "Already configured: port 5557 is present, nothing changed."
+                                .to_string(),
                             true,
                         ),
                         Ok(crate::SimConnectSetup::Created(p)) => (
@@ -187,7 +192,13 @@ impl HeadtrackApp {
         }
 
         ui.add_space(12.0);
-        if ui::param_cell(ui, "Camera response", &mut self.msfs_smoothing, 4.0..=40.0, 1) {
+        if ui::param_cell(
+            ui,
+            "Camera response",
+            &mut self.msfs_smoothing,
+            4.0..=40.0,
+            1,
+        ) {
             self.cmd
                 .send(EngineCmd::SetSimConnectSmoothing(self.msfs_smoothing));
             let mut cfg = CameraConfig::load();
@@ -218,11 +229,15 @@ impl HeadtrackApp {
         ui.add_space(10.0);
         ui::subheading(ui, "Seat position");
         ui.add_space(2.0);
-        ui::note(ui, "Saved per aircraft and re-applied next flight.", colors::DIM)
-            .on_hover_text(
-                "MSFS locks its own camera controls while head tracking holds the camera, so \
+        ui::note(
+            ui,
+            "Saved per aircraft and re-applied next flight.",
+            colors::DIM,
+        )
+        .on_hover_text(
+            "MSFS locks its own camera controls while head tracking holds the camera, so \
                  the pilot eyepoint is adjusted here.",
-            );
+        );
         ui.add_space(6.0);
 
         let title = self
@@ -269,7 +284,11 @@ impl HeadtrackApp {
             .min_col_width(110.0)
             .show(ui, |ui| {
                 for (label, axis, sign) in rows {
-                    ui.label(egui::RichText::new(label).size(colors::TEXT_BODY).color(colors::TEXT));
+                    ui.label(
+                        egui::RichText::new(label)
+                            .size(colors::TEXT_BODY)
+                            .color(colors::TEXT),
+                    );
                     // Same `−  value  +` control as the Camera FOV, with a
                     // read-only middle: the offset is an engine mirror, nudged
                     // rather than typed.
@@ -298,8 +317,13 @@ impl HeadtrackApp {
                 }
             });
         ui.add_space(4.0);
-        if ui::tool_button(ui, ph::ARROW_COUNTER_CLOCKWISE, "Reset seat", ui::ButtonKind::Normal)
-            .clicked()
+        if ui::tool_button(
+            ui,
+            ph::ARROW_COUNTER_CLOCKWISE,
+            "Reset seat",
+            ui::ButtonKind::Normal,
+        )
+        .clicked()
         {
             self.cmd.send(EngineCmd::MsfsSeatReset);
         }
@@ -320,7 +344,13 @@ impl HeadtrackApp {
         field_label(ui, "X-Plane 12 folder");
         ui.horizontal(|ui| {
             let width = (ui.available_width() - 110.0).clamp(160.0, 420.0);
-            ui::path_field(ui, "xplane_path", &mut self.xplane_path, "e.g. /home/user/X-Plane 12", width);
+            ui::path_field(
+                ui,
+                "xplane_path",
+                &mut self.xplane_path,
+                "e.g. /home/user/X-Plane 12",
+                width,
+            );
             if ui::tool_button(ui, ph::FOLDER_OPEN, "Browse", ui::ButtonKind::Normal).clicked() {
                 let start = if std::path::Path::new(&self.xplane_path).is_dir() {
                     self.xplane_path.clone()
@@ -398,7 +428,13 @@ impl HeadtrackApp {
         field_label(ui, "Wine prefix");
         ui.horizontal(|ui| {
             let width = (ui.available_width() - 110.0).clamp(160.0, 420.0);
-            ui::path_field(ui, "sc_prefix_path", &mut self.sc_prefix_path, "e.g. /home/user/Games/star-citizen", width);
+            ui::path_field(
+                ui,
+                "sc_prefix_path",
+                &mut self.sc_prefix_path,
+                "e.g. /home/user/Games/star-citizen",
+                width,
+            );
             if ui::tool_button(ui, ph::FOLDER_OPEN, "Browse", ui::ButtonKind::Normal).clicked() {
                 let start = if std::path::Path::new(&self.sc_prefix_path).is_dir() {
                     self.sc_prefix_path.clone()
@@ -419,7 +455,11 @@ impl HeadtrackApp {
         if bin64_ok {
             path_row(ui, "Bin64", &bin64.display().to_string());
         } else {
-            ui::note(ui, "SC Bin64 not found; check the Wine prefix path above.", colors::WARN);
+            ui::note(
+                ui,
+                "SC Bin64 not found; check the Wine prefix path above.",
+                colors::WARN,
+            );
         }
         match &dll_path {
             Some(p) => path_row(ui, "Source", &p.display().to_string()),
@@ -509,12 +549,11 @@ impl HeadtrackApp {
         ui.add_space(12.0);
         ui::subheading(ui, "View smoothing");
         ui.add_space(4.0);
-        let cell = ui.scope(|ui| {
-            ui::param_cell(ui, "View response", &mut self.sc_smoothing, 0.0..=40.0, 1)
-        });
+        let cell = ui
+            .scope(|ui| ui::param_cell(ui, "View response", &mut self.sc_smoothing, 0.0..=40.0, 1));
         let changed = cell.inner;
         cell.response.on_hover_text(
-                "Star Citizen pulls pose from shared memory on its own schedule and applies no \
+            "Star Citizen pulls pose from shared memory on its own schedule and applies no \
                  smoothing of its own, so this is the only damping on that path. X-Plane \
                  interpolates on the sim's frame clock and MSFS has its own slider.",
         );
@@ -538,7 +577,10 @@ impl HeadtrackApp {
         ui::note(ui, "Bundled AI models; no internet required.", colors::DIM);
         ui.add_space(4.0);
         for (label, value) in [
-            ("Face detector", "face_detection_yunet_2023mar.onnx (227 KB)"),
+            (
+                "Face detector",
+                "face_detection_yunet_2023mar.onnx (227 KB)",
+            ),
             ("Rotation model", "head-pose-mobilenetv3-large.onnx (16 MB)"),
         ] {
             ui::kv_row(ui, label, |ui| {
@@ -559,7 +601,11 @@ impl HeadtrackApp {
     }
 
     fn ui_settings_about(&mut self, ui: &mut egui::Ui) {
-        ui::note(ui, "Open-source head tracking for Linux flight simulators.", colors::DIM);
+        ui::note(
+            ui,
+            "Open-source head tracking for Linux flight simulators.",
+            colors::DIM,
+        );
         ui.add_space(4.0);
         ui::kv_row(ui, "Version", |ui| {
             ui.label(
@@ -573,7 +619,9 @@ impl HeadtrackApp {
 
         let icon = self.github_texture.get_or_insert_with(|| {
             let bytes = include_bytes!("../../../../assets/icons/github-mark-white.png");
-            let img = image::load_from_memory(bytes).expect("github icon").to_rgba8();
+            let img = image::load_from_memory(bytes)
+                .expect("github icon")
+                .to_rgba8();
             let dims = [img.width() as usize, img.height() as usize];
             let color_image =
                 egui::ColorImage::from_rgba_unmultiplied(dims, img.as_flat_samples().as_slice());
@@ -610,7 +658,11 @@ fn install_state(ui: &mut egui::Ui, key: &str, ok: bool, yes: &str, no: &str) {
 
 /// The label above a field — a label, never a sentence.
 fn field_label(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).size(colors::TEXT_BODY).color(colors::DIM));
+    ui.label(
+        egui::RichText::new(text)
+            .size(colors::TEXT_BODY)
+            .color(colors::DIM),
+    );
 }
 
 /// A located file or folder: a key, then the path in monospace, elided from

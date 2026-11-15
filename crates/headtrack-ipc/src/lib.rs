@@ -12,8 +12,7 @@ pub fn socket_path() -> PathBuf {
     if let Ok(p) = std::env::var("HEADTRACK_SOCKET") {
         return PathBuf::from(p);
     }
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| "/tmp".to_string());
+    let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(runtime_dir).join("headtrack.sock")
 }
 
@@ -24,8 +23,7 @@ pub fn cmd_socket_path() -> PathBuf {
     if let Ok(p) = std::env::var("HEADTRACK_CMD_SOCKET") {
         return PathBuf::from(p);
     }
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| "/tmp".to_string());
+    let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(runtime_dir).join("headtrack-cmd.sock")
 }
 
@@ -53,8 +51,7 @@ fn preview_path_in(runtime_dir: Option<std::ffi::OsString>) -> Option<PathBuf> {
 /// The tester (in dump mode) listens here to capture parameter changes from the
 /// GUI with timestamps, correlating them with pose data in the CSV.
 pub fn paramlog_socket_path() -> PathBuf {
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| "/tmp".to_string());
+    let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(runtime_dir).join("headtrack-paramlog.sock")
 }
 

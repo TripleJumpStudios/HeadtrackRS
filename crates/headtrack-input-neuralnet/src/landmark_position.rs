@@ -176,8 +176,16 @@ impl DepthCue {
             Self::Diagonals => &[(0, 4), (1, 3)],
             Self::Rigid => &[(0, 1), (0, 2), (1, 2)],
             Self::Median10 => &[
-                (0, 1), (0, 2), (0, 3), (0, 4), (1, 2),
-                (1, 3), (1, 4), (2, 3), (2, 4), (3, 4),
+                (0, 1),
+                (0, 2),
+                (0, 3),
+                (0, 4),
+                (1, 2),
+                (1, 3),
+                (1, 4),
+                (2, 3),
+                (2, 4),
+                (3, 4),
             ],
         }
     }
@@ -254,8 +262,7 @@ pub fn depth_from_pairs(
         if projected < MIN_PROJECTED_MM {
             continue;
         }
-        let observed =
-            (landmarks[i].0 - landmarks[j].0).hypot(landmarks[i].1 - landmarks[j].1);
+        let observed = (landmarks[i].0 - landmarks[j].0).hypot(landmarks[i].1 - landmarks[j].1);
         if observed < MIN_OBSERVED_PX {
             continue;
         }
@@ -386,16 +393,8 @@ pub fn rotation_from_canonical(yaw_deg: f32, pitch_deg: f32, roll_deg: f32) -> [
     let (cr, sr) = (r.cos(), r.sin());
     // Rz * Ry * Rx, expanded.
     [
-        [
-            cr * cy,
-            cr * sy * sp - sr * cp,
-            cr * sy * cp + sr * sp,
-        ],
-        [
-            sr * cy,
-            sr * sy * sp + cr * cp,
-            sr * sy * cp - cr * sp,
-        ],
+        [cr * cy, cr * sy * sp - sr * cp, cr * sy * cp + sr * sp],
+        [sr * cy, sr * sy * sp + cr * cp, sr * sy * cp - cr * sp],
         [-sy, cy * sp, cy * cp],
     ]
 }
@@ -403,7 +402,11 @@ pub fn rotation_from_canonical(yaw_deg: f32, pitch_deg: f32, roll_deg: f32) -> [
 /// Median of an already-sorted, non-empty slice.
 fn median_sorted(v: &[f32]) -> f32 {
     let n = v.len();
-    if n % 2 == 1 { v[n / 2] } else { (v[n / 2 - 1] + v[n / 2]) * 0.5 }
+    if n % 2 == 1 {
+        v[n / 2]
+    } else {
+        (v[n / 2 - 1] + v[n / 2]) * 0.5
+    }
 }
 
 #[cfg(test)]
@@ -511,14 +514,20 @@ mod tests {
 
         let (_, q_clean) = depth_from_pairs(&clean, &rot, FL, DepthCue::Median10).expect("clean");
         let q_clean = q_clean.expect("multi-pair cues report quality");
-        assert!(q_clean < 1e-3, "perfect landmarks must agree, got {q_clean}");
+        assert!(
+            q_clean < 1e-3,
+            "perfect landmarks must agree, got {q_clean}"
+        );
 
         let mut bad = clean.clone();
         bad[3].0 += 25.0; // shove one mouth corner sideways
         bad[3].1 -= 25.0;
         let (_, q_bad) = depth_from_pairs(&bad, &rot, FL, DepthCue::Median10).expect("bad");
         let q_bad = q_bad.expect("quality");
-        assert!(q_bad > q_clean * 10.0, "quality must rise: {q_clean} -> {q_bad}");
+        assert!(
+            q_bad > q_clean * 10.0,
+            "quality must rise: {q_clean} -> {q_bad}"
+        );
 
         // A single-pair cue has nothing to disagree with.
         let (_, q) = depth_from_pairs(&clean, &rot, FL, DepthCue::Ipd).expect("ipd");
@@ -560,14 +569,20 @@ mod tests {
             translation_from_landmarks(&kps, &rot, IMG, (FL, FL), DepthCue::Verticals)
                 .expect("fit");
         assert!((z + 600.0).abs() < 1.0, "depth {z}");
-        assert!(x.abs() < 2.0 && y.abs() < 2.0, "centred pose should be near zero, got {x},{y}");
+        assert!(
+            x.abs() < 2.0 && y.abs() < 2.0,
+            "centred pose should be near zero, got {x},{y}"
+        );
 
         // A lateral shift of 70 px at 600 mm with a 700 px focal length is 60 mm.
         let kps = project_at(600.0, (70.0, 0.0), &rot);
         let (x, _, _, _) =
             translation_from_landmarks(&kps, &rot, IMG, (FL, FL), DepthCue::Verticals)
                 .expect("fit");
-        assert!((x - 60.0).abs() < 2.0, "70px shift should read ~60mm, got {x}");
+        assert!(
+            (x - 60.0).abs() < 2.0,
+            "70px shift should read ~60mm, got {x}"
+        );
     }
 
     /// **The reason this function exists** — and a limit worth pinning.
@@ -598,7 +613,10 @@ mod tests {
         // Rigid depth (eyes + nose) is expression-immune, so with the robust
         // lateral fit the reported position barely moves at all.
         let (dx, dy) = shift(DepthCue::Rigid);
-        assert!(dx < 1.0 && dy < 1.0, "rigid depth: expected no leak, got {dx},{dy}");
+        assert!(
+            dx < 1.0 && dy < 1.0,
+            "rigid depth: expected no leak, got {dx},{dy}"
+        );
 
         // Verticals depth involves the mouth, so some leak survives via the
         // scale — bounded, but real. Pinned so a regression is visible.

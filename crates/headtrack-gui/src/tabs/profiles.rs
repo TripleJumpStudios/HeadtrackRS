@@ -128,8 +128,15 @@ impl HeadtrackApp {
                             ui.add(
                                 egui::Label::new(
                                     egui::RichText::new(name)
-                                        .font(egui::FontId::new(colors::TEXT_MD, colors::semibold()))
-                                        .color(if is_active { colors::ORANGE } else { colors::TEXT }),
+                                        .font(egui::FontId::new(
+                                            colors::TEXT_MD,
+                                            colors::semibold(),
+                                        ))
+                                        .color(if is_active {
+                                            colors::ORANGE
+                                        } else {
+                                            colors::TEXT
+                                        }),
                                 )
                                 .truncate(),
                             )

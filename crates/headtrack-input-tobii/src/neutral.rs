@@ -59,7 +59,8 @@ impl Collector {
     /// samples [`Self::observe`] requires. For the GUI's countdown only; it
     /// decides nothing.
     pub fn progress(&self) -> f32 {
-        let (Some((first, _)), Some((last, _))) = (self.samples.first(), self.samples.last()) else {
+        let (Some((first, _)), Some((last, _))) = (self.samples.first(), self.samples.last())
+        else {
             return 0.0;
         };
         let span = last.device_us.saturating_sub(first.device_us) as f32 / NEUTRAL_SPAN_US as f32;

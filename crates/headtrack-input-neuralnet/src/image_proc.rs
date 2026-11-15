@@ -11,10 +11,18 @@ pub fn to_gray(rgb: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> GrayImage {
     let (chunks, remainder) = src.as_chunks::<12>(); // 4 pixels × 3 bytes
 
     for chunk in chunks {
-        out.push(((77 * chunk[0] as u32 + 150 * chunk[1] as u32 + 29 * chunk[2] as u32) >> 8) as u8);
-        out.push(((77 * chunk[3] as u32 + 150 * chunk[4] as u32 + 29 * chunk[5] as u32) >> 8) as u8);
-        out.push(((77 * chunk[6] as u32 + 150 * chunk[7] as u32 + 29 * chunk[8] as u32) >> 8) as u8);
-        out.push(((77 * chunk[9] as u32 + 150 * chunk[10] as u32 + 29 * chunk[11] as u32) >> 8) as u8);
+        out.push(
+            ((77 * chunk[0] as u32 + 150 * chunk[1] as u32 + 29 * chunk[2] as u32) >> 8) as u8,
+        );
+        out.push(
+            ((77 * chunk[3] as u32 + 150 * chunk[4] as u32 + 29 * chunk[5] as u32) >> 8) as u8,
+        );
+        out.push(
+            ((77 * chunk[6] as u32 + 150 * chunk[7] as u32 + 29 * chunk[8] as u32) >> 8) as u8,
+        );
+        out.push(
+            ((77 * chunk[9] as u32 + 150 * chunk[10] as u32 + 29 * chunk[11] as u32) >> 8) as u8,
+        );
     }
 
     for px in remainder.as_chunks::<3>().0 {
@@ -66,14 +74,14 @@ pub fn resize_rgb(
 /// f32 values in `R | G | B` channel-plane order.
 pub fn imagenet_normalise_chw(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<f32> {
     const MEAN: [f32; 3] = [0.485, 0.456, 0.406];
-    const STD:  [f32; 3] = [0.229, 0.224, 0.225];
+    const STD: [f32; 3] = [0.229, 0.224, 0.225];
     let (w, h) = img.dimensions();
     let n = (w * h) as usize;
     let mut out = vec![0.0f32; 3 * n];
     let src = img.as_raw();
     for (i, px) in src.as_chunks::<3>().0.iter().enumerate() {
-        out[i]         = (px[0] as f32 / 255.0 - MEAN[0]) / STD[0];
-        out[i + n]     = (px[1] as f32 / 255.0 - MEAN[1]) / STD[1];
+        out[i] = (px[0] as f32 / 255.0 - MEAN[0]) / STD[0];
+        out[i + n] = (px[1] as f32 / 255.0 - MEAN[1]) / STD[1];
         out[i + 2 * n] = (px[2] as f32 / 255.0 - MEAN[2]) / STD[2];
     }
     out

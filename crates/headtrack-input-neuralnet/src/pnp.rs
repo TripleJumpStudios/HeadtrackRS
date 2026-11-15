@@ -56,8 +56,7 @@ impl CameraIntrinsics {
         let fov_diag = fov_diag_deg.to_radians();
         let aspect = img_h as f32 / img_w as f32;
         let fov_w = 2.0 * ((fov_diag / 2.0).tan() / (1.0 + aspect * aspect).sqrt()).atan();
-        let fov_h =
-            2.0 * ((fov_diag / 2.0).tan() / (1.0 + 1.0 / (aspect * aspect)).sqrt()).atan();
+        let fov_h = 2.0 * ((fov_diag / 2.0).tan() / (1.0 + 1.0 / (aspect * aspect)).sqrt()).atan();
         Self {
             fx: (img_w as f32 * 0.5) / (fov_w * 0.5).tan(),
             fy: (img_h as f32 * 0.5) / (fov_h * 0.5).tan(),
@@ -72,11 +71,11 @@ impl CameraIntrinsics {
 /// mouth. Use [`PnpSolver::new`] for the 5-point default or
 /// [`PnpSolver::with_model`] for a custom layout (tests only).
 pub const FACE_MODEL_MM: [[f32; 3]; 5] = [
-    [-31.5, -35.0,   0.0],  // right eye  (subject's right = image-left)
-    [ 31.5, -35.0,   0.0],  // left eye   (subject's left  = image-right)
-    [  0.0,  -5.0, -25.0],  // nose tip   (protrudes toward camera = -Z)
-    [-22.0,  45.0,  -5.0],  // right mouth corner
-    [ 22.0,  45.0,  -5.0],  // left mouth corner
+    [-31.5, -35.0, 0.0], // right eye  (subject's right = image-left)
+    [31.5, -35.0, 0.0],  // left eye   (subject's left  = image-right)
+    [0.0, -5.0, -25.0],  // nose tip   (protrudes toward camera = -Z)
+    [-22.0, 45.0, -5.0], // right mouth corner
+    [22.0, 45.0, -5.0],  // left mouth corner
 ];
 
 /// One PnP solve result. `r` and `t` are in camera frame.
@@ -110,7 +109,9 @@ pub struct PnpSolver {
 }
 
 impl Default for PnpSolver {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PnpSolver {
@@ -122,7 +123,11 @@ impl PnpSolver {
             .map(|p| Vector3::new(p[0], p[1], p[2]))
             .collect();
         let weights = vec![1.0; model.len()];
-        Self { model, weights, last: None }
+        Self {
+            model,
+            weights,
+            last: None,
+        }
     }
 
     /// Build a solver around a caller-supplied 3D model.
@@ -133,7 +138,11 @@ impl PnpSolver {
     #[cfg(test)]
     pub fn with_model(model: Vec<Vector3<f32>>) -> Self {
         let weights = vec![1.0; model.len()];
-        Self { model, weights, last: None }
+        Self {
+            model,
+            weights,
+            last: None,
+        }
     }
 
     /// Replace the per-landmark weights. Length must equal `self.model.len()`.
@@ -157,8 +166,6 @@ impl PnpSolver {
     pub fn reset(&mut self) {
         self.last = None;
     }
-
-
 
     /// Solve PnP. Returns `None` if the iteration diverges, any step places
     /// a model point behind the camera, or `observations_px.len()` does not
@@ -204,19 +211,23 @@ impl PnpSolver {
 
                 // 2×3 Jacobian d(u, v) / d(p_cam)
                 let j_p = Matrix2x3::new(
-                    intrinsics.fx * inv_z, 0.0,                    -intrinsics.fx * p_cam.x * inv_z * inv_z,
-                    0.0,                    intrinsics.fy * inv_z, -intrinsics.fy * p_cam.y * inv_z * inv_z,
+                    intrinsics.fx * inv_z,
+                    0.0,
+                    -intrinsics.fx * p_cam.x * inv_z * inv_z,
+                    0.0,
+                    intrinsics.fy * inv_z,
+                    -intrinsics.fy * p_cam.y * inv_z * inv_z,
                 );
 
                 // d(p_cam) / d(δω) = -[p_cam]_×   (left-multiplicative SO(3) perturbation)
                 // d(p_cam) / d(t)  =  I
                 let p_cross_neg = -skew(&p_cam);
-                let j_rot = j_p * p_cross_neg;       // 2×3
-                let j_t = j_p;                       // 2×3
+                let j_rot = j_p * p_cross_neg; // 2×3
+                let j_t = j_p; // 2×3
                 let mut j = Matrix2x6::<f32>::zeros();
                 for row in 0..2 {
                     for col in 0..3 {
-                        j[(row, col)]     = j_rot[(row, col)];
+                        j[(row, col)] = j_rot[(row, col)];
                         j[(row, col + 3)] = j_t[(row, col)];
                     }
                 }
@@ -255,7 +266,9 @@ impl PnpSolver {
         let mut rms_sq = 0.0;
         for (i, obs) in observations_px.iter().enumerate() {
             let p_cam = r * self.model[i] + t;
-            if p_cam.z < 1.0 { return None; }
+            if p_cam.z < 1.0 {
+                return None;
+            }
             let inv_z = 1.0 / p_cam.z;
             let dx = intrinsics.fx * p_cam.x * inv_z + intrinsics.cx - obs.0;
             let dy = intrinsics.fy * p_cam.y * inv_z + intrinsics.cy - obs.1;
@@ -270,7 +283,12 @@ impl PnpSolver {
         }
 
         self.last = Some((r, t));
-        Some(PnpResult { r, t, rms_px, iterations: iter_count })
+        Some(PnpResult {
+            r,
+            t,
+            rms_px,
+            iterations: iter_count,
+        })
     }
 }
 
@@ -319,17 +337,17 @@ pub fn pose_to_canonical(r: &Matrix3<f32>, t: &Vector3<f32>) -> (f32, f32, f32, 
     //   +roll  (right ear down): right eye Y becomes more positive (image-down)
     //                            → corresponds to Rz(-α). Hence ROLL = -γ.
     const PITCH_SIGN: f32 = -1.0;
-    const YAW_SIGN:   f32 =  1.0;
-    const ROLL_SIGN:  f32 = -1.0;
+    const YAW_SIGN: f32 = 1.0;
+    const ROLL_SIGN: f32 = -1.0;
 
     let to_deg = 180.0 / std::f32::consts::PI;
-    let yaw   = YAW_SIGN   * yaw_rad   * to_deg;
+    let yaw = YAW_SIGN * yaw_rad * to_deg;
     let pitch = PITCH_SIGN * pitch_rad * to_deg;
-    let roll  = ROLL_SIGN  * roll_rad  * to_deg;
+    let roll = ROLL_SIGN * roll_rad * to_deg;
 
     // Translation: camera frame (X right, Y down, Z into-scene)
     //          → canonical (X right, Y up, Z forward = toward camera).
-    let x =  t.x;
+    let x = t.x;
     let y = -t.y;
     let z = -t.z;
 
@@ -337,11 +355,7 @@ pub fn pose_to_canonical(r: &Matrix3<f32>, t: &Vector3<f32>) -> (f32, f32, f32, 
 }
 
 fn skew(v: &Vector3<f32>) -> Matrix3<f32> {
-    Matrix3::new(
-         0.0, -v.z,  v.y,
-         v.z,  0.0, -v.x,
-        -v.y,  v.x,  0.0,
-    )
+    Matrix3::new(0.0, -v.z, v.y, v.z, 0.0, -v.x, -v.y, v.x, 0.0)
 }
 
 /// Rodrigues exponential: so(3) → SO(3). For tiny rotations the second-order
@@ -389,28 +403,33 @@ mod tests {
     /// has real out-of-plane structure to triangulate against.
     fn dense_synthetic_model() -> Vec<Vector3<f32>> {
         vec![
-            Vector3::new(-31.5, -35.0,   0.0),   // right eye outer
-            Vector3::new(-15.0, -38.0,  -3.0),   // right eye inner
-            Vector3::new( 15.0, -38.0,  -3.0),   // left eye inner
-            Vector3::new( 31.5, -35.0,   0.0),   // left eye outer
-            Vector3::new(-12.0, -20.0, -10.0),   // right nose wing
-            Vector3::new(  0.0,  -5.0, -25.0),   // nose tip
-            Vector3::new( 12.0, -20.0, -10.0),   // left nose wing
-            Vector3::new(-22.0,  45.0,  -5.0),   // right mouth corner
-            Vector3::new(  0.0,  48.0,  -3.0),   // upper-lip centre
-            Vector3::new( 22.0,  45.0,  -5.0),   // left mouth corner
-            Vector3::new(-55.0,   0.0,  20.0),   // right cheekbone
-            Vector3::new( 55.0,   0.0,  20.0),   // left cheekbone
-            Vector3::new(-45.0,  35.0,  25.0),   // right jaw
-            Vector3::new( 45.0,  35.0,  25.0),   // left jaw
-            Vector3::new(  0.0,  70.0,   5.0),   // chin tip
-            Vector3::new(  0.0, -60.0,  10.0),   // forehead centre
+            Vector3::new(-31.5, -35.0, 0.0),   // right eye outer
+            Vector3::new(-15.0, -38.0, -3.0),  // right eye inner
+            Vector3::new(15.0, -38.0, -3.0),   // left eye inner
+            Vector3::new(31.5, -35.0, 0.0),    // left eye outer
+            Vector3::new(-12.0, -20.0, -10.0), // right nose wing
+            Vector3::new(0.0, -5.0, -25.0),    // nose tip
+            Vector3::new(12.0, -20.0, -10.0),  // left nose wing
+            Vector3::new(-22.0, 45.0, -5.0),   // right mouth corner
+            Vector3::new(0.0, 48.0, -3.0),     // upper-lip centre
+            Vector3::new(22.0, 45.0, -5.0),    // left mouth corner
+            Vector3::new(-55.0, 0.0, 20.0),    // right cheekbone
+            Vector3::new(55.0, 0.0, 20.0),     // left cheekbone
+            Vector3::new(-45.0, 35.0, 25.0),   // right jaw
+            Vector3::new(45.0, 35.0, 25.0),    // left jaw
+            Vector3::new(0.0, 70.0, 5.0),      // chin tip
+            Vector3::new(0.0, -60.0, 10.0),    // forehead centre
         ]
     }
 
     #[test]
     fn identity_pose_recovered() {
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         let r_true = Matrix3::identity();
         let t_true = Vector3::new(0.0, 0.0, 500.0);
         let obs = project_model(r_true, t_true, &k);
@@ -421,9 +440,9 @@ mod tests {
         assert!(res.rms_px < 0.1, "rms too high: {}", res.rms_px);
         assert!((res.t - t_true).norm() < 0.5, "t drift: {:?}", res.t);
         let (yaw, pitch, roll, x, y, z) = pose_to_canonical(&res.r, &res.t);
-        assert!(yaw.abs()   < 0.5, "yaw   should be ~0, got {yaw}");
+        assert!(yaw.abs() < 0.5, "yaw   should be ~0, got {yaw}");
         assert!(pitch.abs() < 0.5, "pitch should be ~0, got {pitch}");
-        assert!(roll.abs()  < 0.5, "roll  should be ~0, got {roll}");
+        assert!(roll.abs() < 0.5, "roll  should be ~0, got {roll}");
         assert!(x.abs() < 0.5);
         assert!(y.abs() < 0.5);
         assert!((z - (-500.0)).abs() < 0.5);
@@ -432,12 +451,23 @@ mod tests {
     #[test]
     fn yaw_right_recovered() {
         // Synthesize: head turned right by 15° → R = Ry(+15°) in camera frame.
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         let theta = 15.0_f32.to_radians();
         let r_true = Matrix3::new(
-            theta.cos(), 0.0, theta.sin(),
-            0.0,         1.0, 0.0,
-            -theta.sin(), 0.0, theta.cos(),
+            theta.cos(),
+            0.0,
+            theta.sin(),
+            0.0,
+            1.0,
+            0.0,
+            -theta.sin(),
+            0.0,
+            theta.cos(),
         );
         let t_true = Vector3::new(0.0, 0.0, 500.0);
         let obs = project_model(r_true, t_true, &k);
@@ -451,12 +481,23 @@ mod tests {
     #[test]
     fn pitch_up_recovered() {
         // canonical +pitch (nose up) = Rx(-α) in camera frame.
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
-        let theta = -10.0_f32.to_radians();   // Rx(-10°)
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
+        let theta = -10.0_f32.to_radians(); // Rx(-10°)
         let r_true = Matrix3::new(
-            1.0, 0.0,         0.0,
-            0.0, theta.cos(), -theta.sin(),
-            0.0, theta.sin(),  theta.cos(),
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            theta.cos(),
+            -theta.sin(),
+            0.0,
+            theta.sin(),
+            theta.cos(),
         );
         let t_true = Vector3::new(0.0, 0.0, 500.0);
         let obs = project_model(r_true, t_true, &k);
@@ -464,18 +505,32 @@ mod tests {
         let mut solver = PnpSolver::new();
         let res = solver.solve(&obs, &k).expect("solver failed");
         let (_, pitch, _, _, _, _) = pose_to_canonical(&res.r, &res.t);
-        assert!((pitch - 10.0).abs() < 1.0, "expected pitch ≈ +10, got {pitch}");
+        assert!(
+            (pitch - 10.0).abs() < 1.0,
+            "expected pitch ≈ +10, got {pitch}"
+        );
     }
 
     #[test]
     fn roll_right_recovered() {
         // canonical +roll (right ear down) = Rz(-α) in camera frame.
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         let theta = -12.0_f32.to_radians();
         let r_true = Matrix3::new(
-            theta.cos(), -theta.sin(), 0.0,
-            theta.sin(),  theta.cos(), 0.0,
-            0.0,          0.0,         1.0,
+            theta.cos(),
+            -theta.sin(),
+            0.0,
+            theta.sin(),
+            theta.cos(),
+            0.0,
+            0.0,
+            0.0,
+            1.0,
         );
         let t_true = Vector3::new(0.0, 0.0, 500.0);
         let obs = project_model(r_true, t_true, &k);
@@ -488,7 +543,12 @@ mod tests {
 
     #[test]
     fn translation_recovered() {
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         let r_true = Matrix3::identity();
         // Subject moved 50mm to their right, 30mm up, 100mm closer to camera.
         // canonical: x=+50, y=+30, z=+100. Camera frame: tx=+50, ty=-30, tz=400.
@@ -498,8 +558,8 @@ mod tests {
         let mut solver = PnpSolver::new();
         let res = solver.solve(&obs, &k).expect("solver failed");
         let (_, _, _, x, y, z) = pose_to_canonical(&res.r, &res.t);
-        assert!((x -  50.0).abs() < 1.0, "x: {x}");
-        assert!((y -  30.0).abs() < 1.0, "y: {y}");
+        assert!((x - 50.0).abs() < 1.0, "x: {x}");
+        assert!((y - 30.0).abs() < 1.0, "y: {y}");
         assert!((z - (-400.0)).abs() < 1.0, "z: {z}");
     }
 
@@ -510,7 +570,12 @@ mod tests {
     /// yaw/pitch/roll/translation jointly.
     #[test]
     fn dense_16_point_pose_recovered() {
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         let model = dense_synthetic_model();
         assert!(model.len() > 10);
 
@@ -523,23 +588,41 @@ mod tests {
         //   canonical yaw   = +β
         //   canonical pitch = -α    →  α = -canonical_pitch
         //   canonical roll  = -γ    →  γ = -canonical_roll
-        let alpha = (-8.0_f32).to_radians();   // canonical +8° pitch
-        let beta  = 15.0_f32.to_radians();
-        let gamma = (-6.0_f32).to_radians();   // canonical +6° roll
+        let alpha = (-8.0_f32).to_radians(); // canonical +8° pitch
+        let beta = 15.0_f32.to_radians();
+        let gamma = (-6.0_f32).to_radians(); // canonical +6° roll
         let rx = Matrix3::new(
-            1.0, 0.0,         0.0,
-            0.0, alpha.cos(), -alpha.sin(),
-            0.0, alpha.sin(),  alpha.cos(),
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            alpha.cos(),
+            -alpha.sin(),
+            0.0,
+            alpha.sin(),
+            alpha.cos(),
         );
         let ry = Matrix3::new(
-             beta.cos(), 0.0, beta.sin(),
-             0.0,        1.0, 0.0,
-            -beta.sin(), 0.0, beta.cos(),
+            beta.cos(),
+            0.0,
+            beta.sin(),
+            0.0,
+            1.0,
+            0.0,
+            -beta.sin(),
+            0.0,
+            beta.cos(),
         );
         let rz = Matrix3::new(
-            gamma.cos(), -gamma.sin(), 0.0,
-            gamma.sin(),  gamma.cos(), 0.0,
-            0.0,          0.0,         1.0,
+            gamma.cos(),
+            -gamma.sin(),
+            0.0,
+            gamma.sin(),
+            gamma.cos(),
+            0.0,
+            0.0,
+            0.0,
+            1.0,
         );
         let r_true = rz * ry * rx;
         let t_true = Vector3::new(20.0, -15.0, 450.0);
@@ -550,11 +633,11 @@ mod tests {
 
         assert!(res.rms_px < 0.5, "rms too high: {}", res.rms_px);
         let (yaw, pitch, roll, x, y, z) = pose_to_canonical(&res.r, &res.t);
-        assert!((yaw - 15.0).abs() < 0.5,  "yaw: {yaw}");
-        assert!((pitch -  8.0).abs() < 0.5, "pitch: {pitch}");
-        assert!((roll  -  6.0).abs() < 0.5, "roll: {roll}");
-        assert!((x -  20.0).abs() < 0.5, "x: {x}");
-        assert!((y -  15.0).abs() < 0.5, "y: {y}");
+        assert!((yaw - 15.0).abs() < 0.5, "yaw: {yaw}");
+        assert!((pitch - 8.0).abs() < 0.5, "pitch: {pitch}");
+        assert!((roll - 6.0).abs() < 0.5, "roll: {roll}");
+        assert!((x - 20.0).abs() < 0.5, "x: {x}");
+        assert!((y - 15.0).abs() < 0.5, "y: {y}");
         assert!((z - (-450.0)).abs() < 0.5, "z: {z}");
     }
 
@@ -567,7 +650,12 @@ mod tests {
     /// the recovered yaw is markedly closer to ground truth.
     #[test]
     fn weighted_solver_downweights_off_landmark() {
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         let r_true = Matrix3::identity();
         let t_true = Vector3::new(0.0, 0.0, 500.0);
         let mut obs = project_model(r_true, t_true, &k);
@@ -580,8 +668,7 @@ mod tests {
         let (yaw_u, _, _, _, _, _) = pose_to_canonical(&res_u.r, &res_u.t);
 
         // Mouth corners down-weighted to 10%: yaw should be closer to 0.
-        let mut weighted = PnpSolver::new()
-            .with_weights(vec![1.0, 1.0, 1.0, 0.1, 0.1]);
+        let mut weighted = PnpSolver::new().with_weights(vec![1.0, 1.0, 1.0, 0.1, 0.1]);
         let res_w = weighted.solve(&obs, &k).expect("weighted solve");
         let (yaw_w, _, _, _, _, _) = pose_to_canonical(&res_w.r, &res_w.t);
 
@@ -605,7 +692,12 @@ mod tests {
     #[test]
     fn observation_count_mismatch_rejected() {
         // Default 5-point solver should refuse a 4-point observation slice.
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         let mut solver = PnpSolver::new();
         let four_pts: [(f32, f32); 4] = [(0.0, 0.0); 4];
         assert!(solver.solve(&four_pts, &k).is_none());
@@ -623,7 +715,12 @@ mod tests {
     /// is worth keeping.)
     #[test]
     fn many_point_sign_conventions_preserved() {
-        let k = CameraIntrinsics { fx: 800.0, fy: 800.0, cx: 640.0, cy: 360.0 };
+        let k = CameraIntrinsics {
+            fx: 800.0,
+            fy: 800.0,
+            cx: 640.0,
+            cy: 360.0,
+        };
         // Deterministic face-scale cloud: 106 points spread over roughly a
         // head-sized volume, no two coincident, none behind the camera.
         let model: Vec<Vector3<f32>> = (0..106)
@@ -641,22 +738,40 @@ mod tests {
         // Canonical pose: yaw +20, pitch +6, roll -10, translation (+15, -8, +400).
         // R = Rz(γ)·Ry(β)·Rx(α) with γ=-(-10)=10, β=+20, α=-(+6)=-6.
         let alpha = (-6.0_f32).to_radians();
-        let beta  = 20.0_f32.to_radians();
+        let beta = 20.0_f32.to_radians();
         let gamma = 10.0_f32.to_radians();
         let rx = Matrix3::new(
-            1.0, 0.0,         0.0,
-            0.0, alpha.cos(), -alpha.sin(),
-            0.0, alpha.sin(),  alpha.cos(),
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            alpha.cos(),
+            -alpha.sin(),
+            0.0,
+            alpha.sin(),
+            alpha.cos(),
         );
         let ry = Matrix3::new(
-             beta.cos(), 0.0, beta.sin(),
-             0.0,        1.0, 0.0,
-            -beta.sin(), 0.0, beta.cos(),
+            beta.cos(),
+            0.0,
+            beta.sin(),
+            0.0,
+            1.0,
+            0.0,
+            -beta.sin(),
+            0.0,
+            beta.cos(),
         );
         let rz = Matrix3::new(
-            gamma.cos(), -gamma.sin(), 0.0,
-            gamma.sin(),  gamma.cos(), 0.0,
-            0.0,          0.0,         1.0,
+            gamma.cos(),
+            -gamma.sin(),
+            0.0,
+            gamma.sin(),
+            gamma.cos(),
+            0.0,
+            0.0,
+            0.0,
+            1.0,
         );
         let r_true = rz * ry * rx;
         let t_true = Vector3::new(15.0, 8.0, 400.0);
@@ -670,10 +785,10 @@ mod tests {
         let (yaw, pitch, roll, x, y, z) = pose_to_canonical(&res.r, &res.t);
 
         assert!(res.rms_px < 1.0, "rms too high: {}", res.rms_px);
-        assert!((yaw   - 20.0).abs() < 0.5, "yaw: {yaw}");
-        assert!((pitch -  6.0).abs() < 0.5, "pitch: {pitch}");
-        assert!((roll  - (-10.0)).abs() < 0.5, "roll: {roll}");
-        assert!((x -  15.0).abs() < 0.5, "x: {x}");
+        assert!((yaw - 20.0).abs() < 0.5, "yaw: {yaw}");
+        assert!((pitch - 6.0).abs() < 0.5, "pitch: {pitch}");
+        assert!((roll - (-10.0)).abs() < 0.5, "roll: {roll}");
+        assert!((x - 15.0).abs() < 0.5, "x: {x}");
         assert!((y - (-8.0)).abs() < 0.5, "y: {y}");
         assert!((z - (-400.0)).abs() < 0.5, "z: {z}");
     }

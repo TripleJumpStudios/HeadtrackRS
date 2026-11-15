@@ -25,12 +25,17 @@ fn count(dir: &str) -> usize {
 }
 
 /// Wait until frames arrive; returns the last status seen.
-fn wait_for_frames(status: &Mutex<TobiiStatus>, src: &mut TobiiInput, limit: Duration) -> TobiiStatus {
+fn wait_for_frames(
+    status: &Mutex<TobiiStatus>,
+    src: &mut TobiiInput,
+    limit: Duration,
+) -> TobiiStatus {
     let start = Instant::now();
     loop {
         let _ = src.poll();
         let s = status.lock().unwrap().clone();
-        if matches!(s.state, TobiiState::Streaming | TobiiState::NoFace) || start.elapsed() > limit {
+        if matches!(s.state, TobiiState::Streaming | TobiiState::NoFace) || start.elapsed() > limit
+        {
             return s;
         }
         std::thread::sleep(Duration::from_millis(20));
@@ -71,6 +76,12 @@ fn stop_and_reopen_releases_the_device() {
     let fds_after = count("/proc/self/fd");
     let threads_after = count("/proc/self/task");
     eprintln!("fds {fds_before} -> {fds_after}, threads {threads_before} -> {threads_after}");
-    assert!(fds_after <= fds_before, "fd leak: {fds_before} -> {fds_after}");
-    assert!(threads_after <= threads_before, "thread leak: {threads_before} -> {threads_after}");
+    assert!(
+        fds_after <= fds_before,
+        "fd leak: {fds_before} -> {fds_after}"
+    );
+    assert!(
+        threads_after <= threads_before,
+        "thread leak: {threads_before} -> {threads_after}"
+    );
 }

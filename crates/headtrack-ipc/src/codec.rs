@@ -123,7 +123,10 @@ mod tests {
         assert_eq!(f32::from_le_bytes(b[16..20].try_into().unwrap()), pose.x);
         assert_eq!(f32::from_le_bytes(b[20..24].try_into().unwrap()), pose.y);
         assert_eq!(f32::from_le_bytes(b[24..28].try_into().unwrap()), pose.z);
-        assert_eq!(u64::from_le_bytes(b[28..36].try_into().unwrap()), pose.timestamp_us);
+        assert_eq!(
+            u64::from_le_bytes(b[28..36].try_into().unwrap()),
+            pose.timestamp_us
+        );
     }
 
     /// End-to-end through the real decoder: what the writer emits is what a

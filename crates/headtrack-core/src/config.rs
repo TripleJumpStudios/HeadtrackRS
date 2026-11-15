@@ -65,7 +65,7 @@ pub struct CenterConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FovPreset {
     pub name: String,
-    pub fov:  f32,
+    pub fov: f32,
 }
 
 /// Camera-specific settings — stored separately from pipeline profiles.
@@ -224,7 +224,10 @@ pub enum HeadSource {
 
 impl Default for HeadSource {
     fn default() -> Self {
-        Self::Webcam { index: 0, name: None }
+        Self::Webcam {
+            index: 0,
+            name: None,
+        }
     }
 }
 
@@ -260,15 +263,25 @@ where
 
 impl CameraConfig {
     /// A fresh install's capture resolution: 1280×720 (Q-UI6b).
-    pub fn default_resolution() -> (u32, u32) { (1280, 720) }
+    pub fn default_resolution() -> (u32, u32) {
+        (1280, 720)
+    }
     /// What a `camera.toml` without a `camera_resolution` line ran at, and so
     /// keeps: the 640×480 default of every version before 0.2.0.
-    pub fn legacy_resolution() -> (u32, u32) { (640, 480) }
-    pub fn default_minimize_to_tray() -> bool { true }
+    pub fn legacy_resolution() -> (u32, u32) {
+        (640, 480)
+    }
+    pub fn default_minimize_to_tray() -> bool {
+        true
+    }
     /// Matches the X-Plane plugin's `LERP_SPEED` so MSFS starts at the same feel.
-    pub fn default_msfs_smoothing() -> f32 { 15.0 }
+    pub fn default_msfs_smoothing() -> f32 {
+        15.0
+    }
     /// Matches X-Plane's LERP speed, so all three targets start with the same feel.
-    pub fn default_sc_smoothing() -> f32 { 15.0 }
+    pub fn default_sc_smoothing() -> f32 {
+        15.0
+    }
 
     /// Kind of the active head source.
     pub fn source_kind(&self) -> crate::input::SourceKind {
@@ -280,14 +293,20 @@ impl CameraConfig {
     /// else index 0.
     pub fn webcam_selection(&self) -> WebcamSelection {
         match &self.head_source {
-            HeadSource::Webcam { index, name } => WebcamSelection { index: *index, name: name.clone() },
+            HeadSource::Webcam { index, name } => WebcamSelection {
+                index: *index,
+                name: name.clone(),
+            },
             HeadSource::Tobii { .. } => self.last_webcam.clone().unwrap_or_default(),
         }
     }
 
     /// Make a webcam the active source and remember it.
     pub fn select_webcam(&mut self, index: u32, name: Option<String>) {
-        self.last_webcam = Some(WebcamSelection { index, name: name.clone() });
+        self.last_webcam = Some(WebcamSelection {
+            index,
+            name: name.clone(),
+        });
         self.head_source = HeadSource::Webcam { index, name };
     }
 
@@ -483,12 +502,30 @@ impl Default for ProfileConfig {
             name: "Default".into(),
             //                          yaw  pitch roll   x    y    z
             curve: [
-                AxisCurve { sensitivity: 1.0, exponent: 1.2 },
-                AxisCurve { sensitivity: 1.0, exponent: 1.2 },
-                AxisCurve { sensitivity: 1.0, exponent: 1.0 },
-                AxisCurve { sensitivity: 1.0, exponent: 1.0 },
-                AxisCurve { sensitivity: 1.0, exponent: 1.0 },
-                AxisCurve { sensitivity: 1.0, exponent: 1.0 },
+                AxisCurve {
+                    sensitivity: 1.0,
+                    exponent: 1.2,
+                },
+                AxisCurve {
+                    sensitivity: 1.0,
+                    exponent: 1.2,
+                },
+                AxisCurve {
+                    sensitivity: 1.0,
+                    exponent: 1.0,
+                },
+                AxisCurve {
+                    sensitivity: 1.0,
+                    exponent: 1.0,
+                },
+                AxisCurve {
+                    sensitivity: 1.0,
+                    exponent: 1.0,
+                },
+                AxisCurve {
+                    sensitivity: 1.0,
+                    exponent: 1.0,
+                },
             ],
             cross_axis: CrossAxisComp {
                 yaw_to_pitch: 0.0,
@@ -510,7 +547,7 @@ impl Default for ProfileConfig {
                 roll_to_x: 0.0,
             },
             //         yaw  pitch roll   x    y     z
-            deadzone: [0.8, 0.8,  0.5,  2.0, 2.1, 10.0],
+            deadzone: [0.8, 0.8, 0.5, 2.0, 2.1, 10.0],
             center: CenterConfig {
                 drift_rate: 0.2,
                 z_drift_mult: 3.2,
@@ -533,9 +570,9 @@ impl ProfileConfig {
     /// step by a comment and a test.
     pub fn default_accela() -> [AccelaAxis; 6] {
         //                              yaw   pitch  roll   x     y     z
-        let deadzone: [f32; 6]  = [0.12, 0.12, 0.12, 0.40, 0.40, 1.00];
+        let deadzone: [f32; 6] = [0.12, 0.12, 0.12, 0.40, 0.40, 1.00];
         let smoothing: [f32; 6] = [0.60, 0.60, 0.60, 2.00, 2.00, 3.00];
-        let exponent: [f32; 6]  = [1.40, 1.40, 1.40, 1.40, 1.40, 1.50];
+        let exponent: [f32; 6] = [1.40, 1.40, 1.40, 1.40, 1.40, 1.50];
         std::array::from_fn(|i| AccelaAxis {
             deadzone: deadzone[i],
             smoothing: smoothing[i],
@@ -562,7 +599,9 @@ impl ProfileConfig {
             crate::input::SourceKind::Webcam => "active.toml",
             crate::input::SourceKind::Tobii => "active-tobii.toml",
         };
-        std::path::PathBuf::from(xdg_config_base()).join("headtrack-rs").join(file)
+        std::path::PathBuf::from(xdg_config_base())
+            .join("headtrack-rs")
+            .join(file)
     }
 
     /// Name of the built-in Tobii profile (P08).
@@ -598,11 +637,24 @@ impl ProfileConfig {
     /// Pitch-up gain is left at 1.0 here; lowering it waits on live data (P18).
     pub fn tobii_default() -> Self {
         let base = Self::default();
-        let rot = AxisCurve { sensitivity: 1.0, exponent: 1.0 };
-        let none = AxisCurve { sensitivity: 0.0, exponent: 1.0 };
+        let rot = AxisCurve {
+            sensitivity: 1.0,
+            exponent: 1.0,
+        };
+        let none = AxisCurve {
+            sensitivity: 0.0,
+            exponent: 1.0,
+        };
         Self {
             name: Self::TOBII_DEFAULT_NAME.into(),
-            curve: [rot.clone(), rot.clone(), rot, none.clone(), none.clone(), none],
+            curve: [
+                rot.clone(),
+                rot.clone(),
+                rot,
+                none.clone(),
+                none.clone(),
+                none,
+            ],
             cross_axis: CrossAxisComp {
                 yaw_to_pitch: 0.0,
                 yaw_to_x: 0.0,
@@ -619,7 +671,10 @@ impl ProfileConfig {
             },
             //         yaw  pitch roll  x    y    z
             deadzone: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            center: CenterConfig { drift_rate: 0.0, ..base.center },
+            center: CenterConfig {
+                drift_rate: 0.0,
+                ..base.center
+            },
             slew_limit: base.slew_limit,
             accela: base.accela,
         }
@@ -637,7 +692,10 @@ impl ProfileConfig {
     /// ([`active_config_path_for`](Self::active_config_path_for) naming), or the
     /// built-in when the file does not exist. Any other failure is returned so
     /// the caller can say a saved tuning is being ignored.
-    pub fn load_active_in(dir: &std::path::Path, kind: crate::input::SourceKind) -> std::io::Result<Self> {
+    pub fn load_active_in(
+        dir: &std::path::Path,
+        kind: crate::input::SourceKind,
+    ) -> std::io::Result<Self> {
         let path = dir.join(
             Self::active_config_path_for(kind)
                 .file_name()
@@ -674,18 +732,17 @@ impl ProfileConfig {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let toml_str = self.to_toml().map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-        })?;
+        let toml_str = self
+            .to_toml()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         write_atomic(path, &toml_str)
     }
 
     /// Load from a TOML file.
     pub fn load(path: &std::path::Path) -> std::io::Result<Self> {
         let contents = std::fs::read_to_string(path)?;
-        Self::from_toml(&contents).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-        })
+        Self::from_toml(&contents)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 
     /// List all `.toml` profile files in the profiles directory.
@@ -789,7 +846,8 @@ show_advanced = false
 
         let stop = Arc::new(AtomicBool::new(false));
         let writer = {
-            let (path, stop, short, long) = (path.clone(), Arc::clone(&stop), short.clone(), long.clone());
+            let (path, stop, short, long) =
+                (path.clone(), Arc::clone(&stop), short.clone(), long.clone());
             std::thread::spawn(move || {
                 while !stop.load(Ordering::Relaxed) {
                     write_atomic(&path, &long).expect("write long");
@@ -864,7 +922,11 @@ show_advanced = false
         };
         assert!(!stripped.contains("accela"), "strip failed: {stripped}");
         let parsed = ProfileConfig::from_toml(&stripped).expect("pre-accela profile must parse");
-        for (got, want) in parsed.accela.iter().zip(ProfileConfig::default_accela().iter()) {
+        for (got, want) in parsed
+            .accela
+            .iter()
+            .zip(ProfileConfig::default_accela().iter())
+        {
             assert!((got.deadzone - want.deadzone).abs() < 1e-6);
             assert!((got.smoothing - want.smoothing).abs() < 1e-6);
             assert!((got.exponent - want.exponent).abs() < 1e-6);
@@ -972,17 +1034,33 @@ recenter_range = [12.0, 12.0, 4.0, 10.0, 10.0, 60.0]
             .expect("a v7-era profile with [[filter]]/[prediction] must still parse");
 
         // The surviving tuning must come through intact.
-        assert_eq!(cfg.name, "MSFS TRANSLATION v7 (v6 + pitch_to_yaw 0.25 -> 0.05)");
-        assert!((cfg.slew_limit[1] - 80.0).abs() < 1e-6, "hand-tuned pitch slew lost");
-        assert!((cfg.deadzone[5] - 10.0).abs() < 1e-6, "widened Z deadzone lost");
+        assert_eq!(
+            cfg.name,
+            "MSFS TRANSLATION v7 (v6 + pitch_to_yaw 0.25 -> 0.05)"
+        );
+        assert!(
+            (cfg.slew_limit[1] - 80.0).abs() < 1e-6,
+            "hand-tuned pitch slew lost"
+        );
+        assert!(
+            (cfg.deadzone[5] - 10.0).abs() < 1e-6,
+            "widened Z deadzone lost"
+        );
         assert!((cfg.cross_axis.pitch_to_y - 1.75).abs() < 1e-6);
         assert!((cfg.cross_axis.pitch_to_yaw - 0.05).abs() < 1e-6);
         assert!((cfg.cross_axis.pitch_to_z - (-1.5)).abs() < 1e-6);
         assert!((cfg.center.drift_rate - 0.2).abs() < 1e-6);
-        assert_eq!(cfg.center.recenter_range, Some([12.0, 12.0, 4.0, 10.0, 10.0, 60.0]));
+        assert_eq!(
+            cfg.center.recenter_range,
+            Some([12.0, 12.0, 4.0, 10.0, 10.0, 60.0])
+        );
 
         // No [[accela]] section → the flown-and-approved constructor defaults.
-        for (got, want) in cfg.accela.iter().zip(ProfileConfig::default_accela().iter()) {
+        for (got, want) in cfg
+            .accela
+            .iter()
+            .zip(ProfileConfig::default_accela().iter())
+        {
             assert!((got.deadzone - want.deadzone).abs() < 1e-6);
             assert!((got.smoothing - want.smoothing).abs() < 1e-6);
             assert!((got.exponent - want.exponent).abs() < 1e-6);
@@ -1017,17 +1095,11 @@ recenter_range = [12.0, 12.0, 4.0, 10.0, 10.0, 60.0]
         // Too small to use → raised to the minimum, not rejected: the user's
         // intent (a small window) is honoured as far as it can be.
         cfg.window_size = Some((100.0, 50.0));
-        assert_eq!(
-            cfg.restored_window_size(),
-            Some(CameraConfig::MIN_WINDOW)
-        );
+        assert_eq!(cfg.restored_window_size(), Some(CameraConfig::MIN_WINDOW));
 
         // Saved on a 8K display, reopened on a laptop → clamped.
         cfg.window_size = Some((99_000.0, 99_000.0));
-        assert_eq!(
-            cfg.restored_window_size(),
-            Some(CameraConfig::MAX_WINDOW)
-        );
+        assert_eq!(cfg.restored_window_size(), Some(CameraConfig::MAX_WINDOW));
 
         // Corrupt values fall back to the built-in default.
         for bad in [

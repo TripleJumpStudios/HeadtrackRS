@@ -33,8 +33,8 @@ impl SimConnectTcp {
         let mut header = [0u8; 12];
         self.stream.read_exact(&mut header).await?;
 
-        let size    = u32::from_le_bytes(header[0..4].try_into().unwrap()) as usize;
-        let msg_id  = u32::from_le_bytes(header[8..12].try_into().unwrap());
+        let size = u32::from_le_bytes(header[0..4].try_into().unwrap()) as usize;
+        let msg_id = u32::from_le_bytes(header[8..12].try_into().unwrap());
 
         if size < 12 {
             bail!("SimConnect packet size {size} < header size 12");

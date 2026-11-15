@@ -13,7 +13,10 @@
 //!   ("Default" / "Tobii Default").
 use std::{
     path::Path,
-    sync::{atomic::{AtomicBool, Ordering}, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use headtrack_core::{
@@ -33,7 +36,12 @@ pub(crate) fn v4l2_devices() -> Vec<(u32, String)> {
     let mut out: Vec<(u32, String)> = dir
         .flatten()
         .filter_map(|e| {
-            let index = e.file_name().to_str()?.strip_prefix("video")?.parse().ok()?;
+            let index = e
+                .file_name()
+                .to_str()?
+                .strip_prefix("video")?
+                .parse()
+                .ok()?;
             let name = std::fs::read_to_string(e.path().join("name")).ok()?;
             Some((index, name.trim().to_string()))
         })
@@ -75,7 +83,10 @@ pub(crate) fn startup_head_source(cfg: &CameraConfig, env_camera: Option<u32>) -
         HeadSource::Tobii { .. } if !crate::TOBII_SUPPORTED => {
             warn!("camera.toml selects the Tobii, but this build has no Tobii support — using the webcam");
             let s = cfg.webcam_selection();
-            HeadSource::Webcam { index: s.index, name: s.name }
+            HeadSource::Webcam {
+                index: s.index,
+                name: s.name,
+            }
         }
         other => other.clone(),
     }
@@ -108,7 +119,10 @@ pub(crate) fn load_profile_into(pipeline: &mut Pipeline, kind: SourceKind) {
             SourceKind::Webcam => info!("no saved profile — using built-in defaults"),
             SourceKind::Tobii => {
                 apply_config(pipeline, &ProfileConfig::tobii_default());
-                info!("no saved Tobii profile — using built-in {}", ProfileConfig::TOBII_DEFAULT_NAME);
+                info!(
+                    "no saved Tobii profile — using built-in {}",
+                    ProfileConfig::TOBII_DEFAULT_NAME
+                );
             }
         },
         Err(e) => {
@@ -170,7 +184,10 @@ pub(crate) fn open_source(source: &HeadSource, ctx: OpenCtx<'_>) -> Option<Box<d
     }
     match source {
         HeadSource::Webcam { index, name } => {
-            let sel = WebcamSelection { index: *index, name: name.clone() };
+            let sel = WebcamSelection {
+                index: *index,
+                name: name.clone(),
+            };
             let index = pick_webcam_index(&sel, &v4l2_devices());
             ctx.state.camera_index.store(index, Ordering::Relaxed);
             open_webcam(index, ctx)
@@ -207,7 +224,9 @@ fn open_webcam(index: u32, ctx: OpenCtx<'_>) -> Option<Box<dyn InputSource>> {
                 tracing::error!("tracking is disabled until the model is in place; switching cameras will not help");
             } else {
                 warn!("no camera at index {index}: {e:#}");
-                info!("engine running without a head source — pick a camera or the Tobii to connect");
+                info!(
+                    "engine running without a head source — pick a camera or the Tobii to connect"
+                );
             }
             None
         }
@@ -216,7 +235,9 @@ fn open_webcam(index: u32, ctx: OpenCtx<'_>) -> Option<Box<dyn InputSource>> {
 
 #[cfg(not(feature = "input-neuralnet"))]
 fn open_webcam(index: u32, _ctx: OpenCtx<'_>) -> Option<Box<dyn InputSource>> {
-    info!("webcam {index} not opened: this build has no webcam support (input-neuralnet feature off)");
+    info!(
+        "webcam {index} not opened: this build has no webcam support (input-neuralnet feature off)"
+    );
     None
 }
 
@@ -268,12 +289,17 @@ mod tests {
     impl ScratchConfig {
         fn new(tag: &str) -> Self {
             let guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
-            let dir = std::env::temp_dir().join(format!("htrs-engine-{tag}-{}", std::process::id()));
+            let dir =
+                std::env::temp_dir().join(format!("htrs-engine-{tag}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
             let prev = std::env::var_os("XDG_CONFIG_HOME");
             std::env::set_var("XDG_CONFIG_HOME", &dir);
-            Self { dir, prev, _guard: guard }
+            Self {
+                dir,
+                prev,
+                _guard: guard,
+            }
         }
     }
     impl Drop for ScratchConfig {
@@ -287,7 +313,10 @@ mod tests {
     }
 
     fn sel(index: u32, name: Option<&str>) -> WebcamSelection {
-        WebcamSelection { index, name: name.map(str::to_string) }
+        WebcamSelection {
+            index,
+            name: name.map(str::to_string),
+        }
     }
 
     #[test]
@@ -300,9 +329,15 @@ mod tests {
         ];
         // Saved at index 0, but the Facecam is now at 2/3 (replugged): name wins,
         // capture node (lowest) chosen.
-        assert_eq!(pick_webcam_index(&sel(0, Some("Elgato Facecam MK.2")), &devs), 2);
+        assert_eq!(
+            pick_webcam_index(&sel(0, Some("Elgato Facecam MK.2")), &devs),
+            2
+        );
         // Saved index is one of the name's nodes: keep it.
-        assert_eq!(pick_webcam_index(&sel(3, Some("Elgato Facecam MK.2")), &devs), 3);
+        assert_eq!(
+            pick_webcam_index(&sel(3, Some("Elgato Facecam MK.2")), &devs),
+            3
+        );
         // Name gone (unplugged): fall back to the saved index.
         assert_eq!(pick_webcam_index(&sel(1, Some("Logitech C920")), &devs), 1);
         // No name saved (older camera.toml): the index.
@@ -344,7 +379,11 @@ mod tests {
             replace_source(&mut slot, Fake::open);
             assert_eq!(LIVE.load(Ordering::SeqCst), 1);
         }
-        assert_eq!(MAX_LIVE.load(Ordering::SeqCst), 1, "old source must be dropped before the new opens");
+        assert_eq!(
+            MAX_LIVE.load(Ordering::SeqCst),
+            1,
+            "old source must be dropped before the new opens"
+        );
         replace_source(&mut slot, || None);
         assert_eq!(LIVE.load(Ordering::SeqCst), 0);
     }
@@ -356,19 +395,32 @@ mod tests {
         let _cfg = ScratchConfig::new("persist");
         assert_eq!(
             startup_head_source(&CameraConfig::load(), None),
-            HeadSource::Webcam { index: 0, name: None },
+            HeadSource::Webcam {
+                index: 0,
+                name: None
+            },
             "fresh install: webcam 0"
         );
-        let cam = HeadSource::Webcam { index: 2, name: Some("Elgato Facecam MK.2".into()) };
+        let cam = HeadSource::Webcam {
+            index: 2,
+            name: Some("Elgato Facecam MK.2".into()),
+        };
         persist_head_source(&cam).unwrap();
         // "Restart": everything re-read from disk.
         assert_eq!(startup_head_source(&CameraConfig::load(), None), cam);
         // A one-off HEADTRACK_CAMERA override wins for that run only.
         assert_eq!(
             startup_head_source(&CameraConfig::load(), Some(4)),
-            HeadSource::Webcam { index: 4, name: None }
+            HeadSource::Webcam {
+                index: 4,
+                name: None
+            }
         );
-        assert_eq!(CameraConfig::load().head_source, cam, "the override is not persisted");
+        assert_eq!(
+            CameraConfig::load().head_source,
+            cam,
+            "the override is not persisted"
+        );
         // Tobii, then back: the webcam is remembered.
         persist_head_source(&HeadSource::Tobii { serial: None }).unwrap();
         let cfg = CameraConfig::load();
@@ -380,10 +432,15 @@ mod tests {
     #[test]
     fn a_saved_tobii_source_starts_as_the_tobii() {
         let _cfg = ScratchConfig::new("tobii-start");
-        persist_head_source(&HeadSource::Tobii { serial: Some("IS5FF".into()) }).unwrap();
+        persist_head_source(&HeadSource::Tobii {
+            serial: Some("IS5FF".into()),
+        })
+        .unwrap();
         assert_eq!(
             startup_head_source(&CameraConfig::load(), None),
-            HeadSource::Tobii { serial: Some("IS5FF".into()) }
+            HeadSource::Tobii {
+                serial: Some("IS5FF".into())
+            }
         );
     }
 
@@ -391,11 +448,18 @@ mod tests {
     #[test]
     fn a_saved_tobii_source_falls_back_to_the_webcam_without_tobii_support() {
         let _cfg = ScratchConfig::new("tobii-off");
-        persist_head_source(&HeadSource::Webcam { index: 1, name: None }).unwrap();
+        persist_head_source(&HeadSource::Webcam {
+            index: 1,
+            name: None,
+        })
+        .unwrap();
         persist_head_source(&HeadSource::Tobii { serial: None }).unwrap();
         assert_eq!(
             startup_head_source(&CameraConfig::load(), None),
-            HeadSource::Webcam { index: 1, name: None }
+            HeadSource::Webcam {
+                index: 1,
+                name: None
+            }
         );
     }
 
@@ -404,7 +468,10 @@ mod tests {
     #[test]
     fn switching_sources_round_trips_both_profiles() {
         let _cfg = ScratchConfig::new("profiles");
-        let mut webcam = ProfileConfig { name: "Mine".into(), ..Default::default() };
+        let mut webcam = ProfileConfig {
+            name: "Mine".into(),
+            ..Default::default()
+        };
         webcam.deadzone[0] = 0.37;
         webcam.cross_axis.pitch_to_y = 1.9;
         let wpath = ProfileConfig::active_config_path_for(SourceKind::Webcam);
@@ -425,11 +492,27 @@ mod tests {
         };
         assert_ne!(expect_webcam, expect_tobii);
 
-        assert_eq!(pipeline_for(SourceKind::Webcam).get_all_params(), expect_webcam);
-        assert_eq!(pipeline_for(SourceKind::Tobii).get_all_params(), expect_tobii);
-        assert_eq!(pipeline_for(SourceKind::Webcam).get_all_params(), expect_webcam);
-        assert_eq!(std::fs::read(&wpath).unwrap(), wbytes, "webcam profile untouched");
-        assert!(!tpath.exists(), "loading the built-in Tobii Default writes nothing");
+        assert_eq!(
+            pipeline_for(SourceKind::Webcam).get_all_params(),
+            expect_webcam
+        );
+        assert_eq!(
+            pipeline_for(SourceKind::Tobii).get_all_params(),
+            expect_tobii
+        );
+        assert_eq!(
+            pipeline_for(SourceKind::Webcam).get_all_params(),
+            expect_webcam
+        );
+        assert_eq!(
+            std::fs::read(&wpath).unwrap(),
+            wbytes,
+            "webcam profile untouched"
+        );
+        assert!(
+            !tpath.exists(),
+            "loading the built-in Tobii Default writes nothing"
+        );
 
         // With a saved Tobii profile, that one is used instead of the built-in.
         let mut tobii = ProfileConfig::tobii_default();
@@ -438,7 +521,10 @@ mod tests {
         let tbytes = std::fs::read(&tpath).unwrap();
         let got = pipeline_for(SourceKind::Tobii).get_all_params();
         assert!(got.contains(&("response-curve", "pitch.sensitivity", 0.6)));
-        assert_eq!(pipeline_for(SourceKind::Webcam).get_all_params(), expect_webcam);
+        assert_eq!(
+            pipeline_for(SourceKind::Webcam).get_all_params(),
+            expect_webcam
+        );
         assert_eq!(std::fs::read(&tpath).unwrap(), tbytes);
     }
 }

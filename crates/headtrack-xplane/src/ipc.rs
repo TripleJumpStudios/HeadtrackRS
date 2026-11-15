@@ -41,7 +41,8 @@ pub fn start(socket_path: PathBuf) -> Arc<Mutex<Option<Pose>>> {
                         match recv_loop(&stream, &pose_thread) {
                             Ok(()) => {}
                             Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                                let _ = ffi_debug("headtrack-rs: daemon disconnected, reconnecting\n");
+                                let _ =
+                                    ffi_debug("headtrack-rs: daemon disconnected, reconnecting\n");
                             }
                             Err(_) => {}
                         }
@@ -73,7 +74,10 @@ fn recv_loop(stream: &UnixStream, pose: &Arc<Mutex<Option<Pose>>>) -> io::Result
         let payload_len = u32::from_le_bytes(len_buf) as usize;
 
         if payload_len > 256 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "payload too large"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "payload too large",
+            ));
         }
         let mut payload = vec![0u8; payload_len];
         reader.read_exact(&mut payload)?;

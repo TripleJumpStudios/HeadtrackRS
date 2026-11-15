@@ -104,10 +104,15 @@ impl SettingsLauncher {
 /// portal's bind call doesn't present a dialog of its own. Returns the child,
 /// for the caller to reap.
 fn open_shortcut_settings() -> Option<Child> {
-    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().to_uppercase();
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_uppercase();
     let candidates: &[(&str, &[&str])] = if desktop.contains("KDE") {
         // Plasma: the Shortcuts KCM lists portal-registered applications.
-        &[("systemsettings", &["kcm_keys"]), ("kcmshell6", &["kcm_keys"])]
+        &[
+            ("systemsettings", &["kcm_keys"]),
+            ("kcmshell6", &["kcm_keys"]),
+        ]
     } else if desktop.contains("GNOME") {
         &[("gnome-control-center", &["keyboard"])]
     } else {
@@ -182,7 +187,10 @@ async fn run_inner(
         .await?;
     let bound = request.response()?;
     publish(state, bound.shortcuts());
-    info!("global shortcuts: bound triggers: {}", describe(bound.shortcuts()));
+    info!(
+        "global shortcuts: bound triggers: {}",
+        describe(bound.shortcuts())
+    );
     info!(
         "global shortcuts: {}/{n} actions registered with the desktop portal — \
          assign keys in the bind dialog, System Settings → Shortcuts, or the \

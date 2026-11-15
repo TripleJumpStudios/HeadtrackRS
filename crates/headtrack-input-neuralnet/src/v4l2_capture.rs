@@ -54,10 +54,18 @@ struct CameraQuirks {
 }
 
 const CAMERA_QUIRKS: &[CameraQuirks] = &[
-    CameraQuirks { name_contains: "delan",   exposure_100us: Some(156), lock_on_settle: false },
+    CameraQuirks {
+        name_contains: "delan",
+        exposure_100us: Some(156),
+        lock_on_settle: false,
+    },
     // Elgato Facecam MK.2 — AE/AGC steps shift landmark positions and
     // manufacture pose pops, so freeze the image once the camera has settled.
-    CameraQuirks { name_contains: "facecam", exposure_100us: None,      lock_on_settle: true },
+    CameraQuirks {
+        name_contains: "facecam",
+        exposure_100us: None,
+        lock_on_settle: true,
+    },
 ];
 
 /// How long to let auto-exposure/AGC/AWB converge before freezing them.
@@ -82,9 +90,13 @@ unsafe impl Send for V4l2Camera {}
 impl Drop for V4l2Camera {
     fn drop(&mut self) {
         // Drop stream first (stops mmap DMA, returns buffers to driver).
-        unsafe { ManuallyDrop::drop(&mut self.stream); }
+        unsafe {
+            ManuallyDrop::drop(&mut self.stream);
+        }
         // Now safe to close the device fd.
-        unsafe { drop(Box::from_raw(self.dev_ptr)); }
+        unsafe {
+            drop(Box::from_raw(self.dev_ptr));
+        }
     }
 }
 
@@ -94,8 +106,7 @@ impl V4l2Camera {
         let path = format!("/dev/video{index}");
         info!("v4l2 fallback: opening {path} at {width}×{height} MJPEG @{fps}fps");
 
-        let dev = Device::with_path(&path)
-            .with_context(|| format!("opening {path}"))?;
+        let dev = Device::with_path(&path).with_context(|| format!("opening {path}"))?;
 
         // Set pixel format to MJPEG at requested resolution.
         let mut fmt = dev.format().context("reading current format")?;
@@ -192,8 +203,12 @@ unsafe impl Send for V4l2YuyvCamera {}
 
 impl Drop for V4l2YuyvCamera {
     fn drop(&mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.stream); }
-        unsafe { drop(Box::from_raw(self.dev_ptr)); }
+        unsafe {
+            ManuallyDrop::drop(&mut self.stream);
+        }
+        unsafe {
+            drop(Box::from_raw(self.dev_ptr));
+        }
     }
 }
 
@@ -203,8 +218,7 @@ impl V4l2YuyvCamera {
         let path = format!("/dev/video{index}");
         info!("v4l2 yuyv: opening {path} at {width}×{height} YUYV @{fps}fps");
 
-        let dev = Device::with_path(&path)
-            .with_context(|| format!("opening {path}"))?;
+        let dev = Device::with_path(&path).with_context(|| format!("opening {path}"))?;
 
         let mut fmt = dev.format().context("reading current format")?;
         fmt.width = width;
@@ -255,7 +269,10 @@ impl V4l2YuyvCamera {
         let owned = buf.to_vec();
 
         if t_cap.as_millis() > 300 {
-            warn!("yuyv capture stall: {:.0}ms (camera may have frozen)", t_cap.as_millis());
+            warn!(
+                "yuyv capture stall: {:.0}ms (camera may have frozen)",
+                t_cap.as_millis()
+            );
         }
         if self.frame_count.is_multiple_of(30) {
             tracing::debug!(
@@ -341,8 +358,13 @@ pub fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> ImageBuffer<Rgb<u8>,
 /// frame rate.  Silently ignored if the camera doesn't support the control.
 pub fn disable_framerate_priority(camera_index: u32) {
     let path = format!("/dev/video{camera_index}");
-    let Ok(dev) = Device::with_path(&path) else { return };
-    match dev.set_control(Control { id: V4L2_CID_EXPOSURE_AUTO_PRIORITY, value: Value::Boolean(false) }) {
+    let Ok(dev) = Device::with_path(&path) else {
+        return;
+    };
+    match dev.set_control(Control {
+        id: V4L2_CID_EXPOSURE_AUTO_PRIORITY,
+        value: Value::Boolean(false),
+    }) {
         Ok(()) => info!("v4l2: exposure_dynamic_framerate disabled for camera {camera_index}"),
         Err(e) => warn!("v4l2: couldn't disable framerate priority for camera {camera_index}: {e}"),
     }
@@ -366,10 +388,9 @@ pub fn maybe_lock_exposure(camera_index: u32) {
         info!("v4l2: exposure lock disabled (HEADTRACK_NO_EXPOSURE_LOCK=1)");
         return;
     }
-    let sysfs_name = std::fs::read_to_string(
-        format!("/sys/class/video4linux/video{camera_index}/name")
-    )
-    .unwrap_or_default();
+    let sysfs_name =
+        std::fs::read_to_string(format!("/sys/class/video4linux/video{camera_index}/name"))
+            .unwrap_or_default();
     let sysfs_lower = sysfs_name.trim().to_lowercase();
     let wants_lock = CAMERA_QUIRKS
         .iter()
@@ -389,12 +410,18 @@ pub fn maybe_lock_exposure(camera_index: u32) {
                 return;
             };
             // Switch to manual exposure — the device keeps its settled shutter.
-            match dev.set_control(Control { id: V4L2_CID_EXPOSURE_AUTO, value: Value::Integer(1) }) {
+            match dev.set_control(Control {
+                id: V4L2_CID_EXPOSURE_AUTO,
+                value: Value::Integer(1),
+            }) {
                 Ok(()) => info!("v4l2: '{name}' auto-exposure frozen at settled value"),
                 Err(e) => warn!("v4l2: '{name}' couldn't freeze auto-exposure: {e}"),
             }
             // Freeze white balance at the settled temperature.
-            match dev.set_control(Control { id: V4L2_CID_AUTO_WHITE_BALANCE, value: Value::Boolean(false) }) {
+            match dev.set_control(Control {
+                id: V4L2_CID_AUTO_WHITE_BALANCE,
+                value: Value::Boolean(false),
+            }) {
                 Ok(()) => info!("v4l2: '{name}' auto white balance frozen"),
                 Err(e) => warn!("v4l2: '{name}' couldn't freeze white balance: {e}"),
             }
@@ -421,10 +448,8 @@ pub fn maybe_lock_exposure(camera_index: u32) {
 
 /// Read the sysfs device name for `/dev/videoN` and apply any matching quirks.
 fn apply_camera_quirks(dev: &Device, index: u32) {
-    let sysfs_name = std::fs::read_to_string(
-        format!("/sys/class/video4linux/video{index}/name")
-    )
-    .unwrap_or_default();
+    let sysfs_name = std::fs::read_to_string(format!("/sys/class/video4linux/video{index}/name"))
+        .unwrap_or_default();
     let sysfs_lower = sysfs_name.trim().to_lowercase();
 
     let quirks = CAMERA_QUIRKS
@@ -433,22 +458,35 @@ fn apply_camera_quirks(dev: &Device, index: u32) {
 
     let Some(q) = quirks else { return };
 
-    info!("v4l2: applying quirks for '{}' (matched '{}')", sysfs_name.trim(), q.name_contains);
+    info!(
+        "v4l2: applying quirks for '{}' (matched '{}')",
+        sysfs_name.trim(),
+        q.name_contains
+    );
 
     if let Some(exp) = q.exposure_100us {
         // Step 1: disable dynamic framerate — without this the driver drops fps
         // to accommodate exposure even in manual mode (Delan Cam default=1).
-        match dev.set_control(Control { id: V4L2_CID_EXPOSURE_AUTO_PRIORITY, value: Value::Boolean(false) }) {
+        match dev.set_control(Control {
+            id: V4L2_CID_EXPOSURE_AUTO_PRIORITY,
+            value: Value::Boolean(false),
+        }) {
             Ok(()) => info!("v4l2: exposure_dynamic_framerate disabled"),
             Err(e) => warn!("v4l2: couldn't clear exposure_dynamic_framerate: {e}"),
         }
         // Step 2: switch to manual exposure mode.
-        match dev.set_control(Control { id: V4L2_CID_EXPOSURE_AUTO, value: Value::Integer(1) }) {
+        match dev.set_control(Control {
+            id: V4L2_CID_EXPOSURE_AUTO,
+            value: Value::Integer(1),
+        }) {
             Ok(()) => info!("v4l2: auto-exposure disabled (manual mode)"),
             Err(e) => warn!("v4l2: couldn't set exposure_auto: {e}"),
         }
         // Step 3: set absolute exposure (in 100 µs units; camera min=156).
-        match dev.set_control(Control { id: V4L2_CID_EXPOSURE_ABSOLUTE, value: Value::Integer(exp) }) {
+        match dev.set_control(Control {
+            id: V4L2_CID_EXPOSURE_ABSOLUTE,
+            value: Value::Integer(exp),
+        }) {
             Ok(()) => info!("v4l2: exposure_absolute set to {exp} (~{}ms)", exp / 10),
             Err(e) => warn!("v4l2: couldn't set exposure_absolute: {e}"),
         }

@@ -1,7 +1,7 @@
-use headtrack_core::pipeline::stage_names;
 use crate::{colors, ui, HeadtrackApp, TuningGroup, AXIS_LABELS, AXIS_NAMES, AXIS_UNITS};
 use eframe::egui;
 use egui_phosphor::regular as ph;
+use headtrack_core::pipeline::stage_names;
 use headtrack_engine::EngineCmd;
 
 impl HeadtrackApp {
@@ -25,7 +25,11 @@ impl HeadtrackApp {
         // the right.
         ui::two_columns(ui, "tuning-axes", ui::Split::Even, |c| {
             c.group(Some("Active axes"), |ui| {
-                ui::note(ui, "An axis turned off is frozen; the sim stops receiving it.", colors::DIM);
+                ui::note(
+                    ui,
+                    "An axis turned off is frozen; the sim stops receiving it.",
+                    colors::DIM,
+                );
                 ui.add_space(8.0);
                 self.ui_tuning_axis_toggles(ui);
             });
@@ -51,7 +55,10 @@ impl HeadtrackApp {
             });
             c.group(Some("Head position"), |ui| {
                 let w = ui.available_width();
-                let z = self.source_kind.provides_translation().then_some(pose_vals[5]);
+                let z = self
+                    .source_kind
+                    .provides_translation()
+                    .then_some(pose_vals[5]);
                 ui::draw_pose_bubble(ui, pose_vals[0], pose_vals[1], pose_vals[2], z, w, 190.0);
             });
         });
@@ -84,31 +91,39 @@ impl HeadtrackApp {
                     let enabled = i < 3 || self.source_kind.provides_translation();
                     let clicked = ui
                         .add_enabled_ui(enabled, |ui| {
-                            ui::toggle_chip(ui, AXIS_LABELS[i], self.axis_active[i], ui::axis_color(i))
+                            ui::toggle_chip(
+                                ui,
+                                AXIS_LABELS[i],
+                                self.axis_active[i],
+                                ui::axis_color(i),
+                            )
                         })
                         .inner
                         .clicked();
                     if clicked {
                         self.axis_active[i] = !self.axis_active[i];
                         let on = self.tracking_enabled && self.axis_active[i];
-                        self.send_set(stage_names::AXIS_MASK, AXIS_NAMES[i], if on { 1.0 } else { 0.0 });
+                        self.send_set(
+                            stage_names::AXIS_MASK,
+                            AXIS_NAMES[i],
+                            if on { 1.0 } else { 0.0 },
+                        );
                     }
                 }
             });
             ui.add_space(4.0);
         }
         if !self.tracking_enabled {
-            ui::note(ui, "Tracking is paused; axes resume as set here.", colors::WARN);
+            ui::note(
+                ui,
+                "Tracking is paused; axes resume as set here.",
+                colors::WARN,
+            );
         }
     }
 
     /// Head input versus what the response curve makes of it.
-    fn ui_tuning_comparison(
-        &self,
-        ui: &mut egui::Ui,
-        pose_vals: &[f32; 6],
-        group: TuningGroup,
-    ) {
+    fn ui_tuning_comparison(&self, ui: &mut egui::Ui, pose_vals: &[f32; 6], group: TuningGroup) {
         egui::Grid::new(match group {
             TuningGroup::Look => "look_telem",
             TuningGroup::Move => "move_telem",
@@ -126,7 +141,11 @@ impl HeadtrackApp {
             }
             ui.end_row();
 
-            ui.label(egui::RichText::new("Head").size(colors::TEXT_BODY).color(colors::DIM));
+            ui.label(
+                egui::RichText::new("Head")
+                    .size(colors::TEXT_BODY)
+                    .color(colors::DIM),
+            );
             for &i in group.axes() {
                 ui.label(
                     egui::RichText::new(format!("{:.1}{}", pose_vals[i].abs(), AXIS_UNITS[i]))
@@ -139,10 +158,15 @@ impl HeadtrackApp {
             // Deliberately "Curve out", not "Camera": this is the response
             // curve alone. Accela, the deadzone and cross-axis compensation all
             // act after it, so calling the number a camera angle overstates it.
-            ui.label(egui::RichText::new("Curve out").size(colors::TEXT_BODY).color(colors::DIM));
+            ui.label(
+                egui::RichText::new("Curve out")
+                    .size(colors::TEXT_BODY)
+                    .color(colors::DIM),
+            );
             for &i in group.axes() {
                 let head = pose_vals[i].abs();
-                let out = self.profile.curve[i].sensitivity * head.powf(self.profile.curve[i].exponent);
+                let out =
+                    self.profile.curve[i].sensitivity * head.powf(self.profile.curve[i].exponent);
                 ui.label(
                     egui::RichText::new(format!("{:.1}{}", out, AXIS_UNITS[i]))
                         .font(egui::FontId::new(colors::TEXT_BODY, colors::mono_bold()))
@@ -209,9 +233,15 @@ impl HeadtrackApp {
     /// `editable` false greys Reset (Tobii translation) but keeps Recenter.
     fn ui_tuning_buttons(&mut self, ui: &mut egui::Ui, group: TuningGroup, editable: bool) {
         ui.horizontal(|ui| {
-            if ui::tool_button_enabled(ui, editable, ph::ARROW_CLOCKWISE, "Reset group", ui::ButtonKind::Normal)
-                .on_hover_text("Restore this group's four sliders to their built-in defaults")
-                .clicked()
+            if ui::tool_button_enabled(
+                ui,
+                editable,
+                ph::ARROW_CLOCKWISE,
+                "Reset group",
+                ui::ButtonKind::Normal,
+            )
+            .on_hover_text("Restore this group's four sliders to their built-in defaults")
+            .clicked()
             {
                 let defaults = crate::tabs::tobii::builtin_profile(self.source_kind);
                 for &i in group.axes() {
@@ -248,7 +278,11 @@ impl HeadtrackApp {
     }
 
     /// Apply an edit to every axis in `group` and mark the profile dirty.
-    fn set_group(&mut self, group: TuningGroup, mut edit: impl FnMut(&mut headtrack_core::config::ProfileConfig, usize)) {
+    fn set_group(
+        &mut self,
+        group: TuningGroup,
+        mut edit: impl FnMut(&mut headtrack_core::config::ProfileConfig, usize),
+    ) {
         for &i in group.axes() {
             edit(&mut self.profile, i);
         }

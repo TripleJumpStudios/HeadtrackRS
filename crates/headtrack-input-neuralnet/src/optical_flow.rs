@@ -145,7 +145,11 @@ impl PyramidLevel {
                 data[(y * new_w + x) as usize] = ((p00 + p10 + p01 + p11 + 2) >> 2) as u8;
             }
         }
-        Self { data, w: new_w, h: new_h }
+        Self {
+            data,
+            w: new_w,
+            h: new_h,
+        }
     }
 
     /// Bilinear sample at sub-pixel `(x, y)` clamped to image bounds.
@@ -181,7 +185,11 @@ fn build_pyramid(img: &GrayImage, levels: usize) -> Vec<PyramidLevel> {
 }
 
 /// Track a single point through the pyramid coarse → fine.
-fn track_one(prev_pyr: &[PyramidLevel], curr_pyr: &[PyramidLevel], full_pt: (f32, f32)) -> TrackedPoint {
+fn track_one(
+    prev_pyr: &[PyramidLevel],
+    curr_pyr: &[PyramidLevel],
+    full_pt: (f32, f32),
+) -> TrackedPoint {
     // Initial displacement guess: zero. Refine coarse-to-fine.
     let mut dx = 0.0f32;
     let mut dy = 0.0f32;
@@ -300,7 +308,11 @@ fn track_one(prev_pyr: &[PyramidLevel], curr_pyr: &[PyramidLevel], full_pt: (f32
     let new_pt = (full_pt.0 + dx, full_pt.1 + dy);
     let tracked = confidence >= MIN_EIGEN_THRESHOLD && residual <= MAX_RESIDUAL_PER_PIXEL;
 
-    TrackedPoint { point: new_pt, confidence, tracked }
+    TrackedPoint {
+        point: new_pt,
+        confidence,
+        tracked,
+    }
 }
 
 #[cfg(test)]

@@ -48,11 +48,11 @@ mod capture_errors;
 mod frame_dump;
 mod image_proc;
 mod landmark_position;
-mod z_gate;
 mod optical_flow;
 mod ort_session;
 mod pnp;
 mod pose_estimator_6drepnet;
+mod z_gate;
 // Exposed (hidden) so `examples/detect_frames.rs` can run a detector over saved
 // frames without a camera — the offline half of the detector bake-off, and the
 // only way to verify the Rust decode against OpenCV's reference implementation.
@@ -65,8 +65,12 @@ mod v4l2_capture;
 pub mod yunet_detector;
 
 use anyhow::Context;
+use capture_errors::{
+    is_device_gone, send_pose, sleep_unless_shutdown, CaptureErrors, CaptureStep,
+};
 use headtrack_core::{InputSource, RawPose};
 use image::{ImageBuffer, Rgb};
+use scrfd_detector::Detection;
 use std::{
     path::Path,
     sync::{
@@ -78,8 +82,6 @@ use std::{
     time::{Duration, Instant},
 };
 use tracing::{debug, info};
-use scrfd_detector::Detection;
-use capture_errors::{is_device_gone, send_pose, sleep_unless_shutdown, CaptureErrors, CaptureStep};
 pub use tracker::MissingModel;
 
 /// Name of the face detector this process will use — `"yunet"` (default) or `"scrfd"`.
@@ -97,7 +99,7 @@ pub fn active_detector_name() -> &'static str {
     tracker::read_detector_choice()
 }
 use tracker::{Tracker, TrackerConfig};
-use v4l2_capture::{V4l2YuyvCamera, yuyv_to_gray, yuyv_to_rgb};
+use v4l2_capture::{yuyv_to_gray, yuyv_to_rgb, V4l2YuyvCamera};
 
 /// Channel element type for frames passed to the preview encoder thread.
 /// `(rgb, bbox, landmarks)` — landmarks may be empty when no fresh detection
@@ -117,12 +119,16 @@ pub struct PreviewSlot {
 }
 
 impl Default for PreviewSlot {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PreviewSlot {
     pub(crate) fn new() -> Self {
-        Self { ptr: AtomicPtr::new(std::ptr::null_mut()) }
+        Self {
+            ptr: AtomicPtr::new(std::ptr::null_mut()),
+        }
     }
 
     /// Store a new JPEG frame. Frees the previous frame if any.
@@ -130,7 +136,9 @@ impl PreviewSlot {
         let boxed = Box::into_raw(Box::new(jpeg));
         let old = self.ptr.swap(boxed, Ordering::AcqRel);
         if !old.is_null() {
-            unsafe { drop(Box::from_raw(old)); }
+            unsafe {
+                drop(Box::from_raw(old));
+            }
         }
     }
 
@@ -150,7 +158,9 @@ impl Drop for PreviewSlot {
     fn drop(&mut self) {
         let ptr = *self.ptr.get_mut();
         if !ptr.is_null() {
-            unsafe { drop(Box::from_raw(ptr)); }
+            unsafe {
+                drop(Box::from_raw(ptr));
+            }
         }
     }
 }
@@ -201,7 +211,10 @@ impl LatestFrame {
                 return Some(frame);
             }
             // Wake periodically to check shutdown flag.
-            let (guard, _) = self.ready.wait_timeout(slot, Duration::from_millis(100)).unwrap();
+            let (guard, _) = self
+                .ready
+                .wait_timeout(slot, Duration::from_millis(100))
+                .unwrap();
             slot = guard;
         }
     }
@@ -217,10 +230,8 @@ const YUYV_PREFERRED: &[&str] = &[
 
 /// Return true if this camera should use YUYV capture with decoupled threads.
 fn should_use_yuyv(camera_index: u32) -> bool {
-    let name = std::fs::read_to_string(
-        format!("/sys/class/video4linux/video{camera_index}/name"),
-    )
-    .unwrap_or_default();
+    let name = std::fs::read_to_string(format!("/sys/class/video4linux/video{camera_index}/name"))
+        .unwrap_or_default();
     let lower = name.trim().to_lowercase();
     YUYV_PREFERRED.iter().any(|key| lower.contains(key))
 }
@@ -256,12 +267,13 @@ impl NeuralNetInput {
     /// thread (nokhwa's `Camera` is not `Send`).  Initialisation errors are
     /// propagated back to the caller via a rendezvous channel before `new`
     /// returns.
-    pub fn new(
-        model_dir: &Path,
-        camera_index: u32,
-        fov_diag_deg: f32,
-    ) -> anyhow::Result<Self> {
-        Self::with_overlay(model_dir, camera_index, fov_diag_deg, Arc::new(AtomicBool::new(false)))
+    pub fn new(model_dir: &Path, camera_index: u32, fov_diag_deg: f32) -> anyhow::Result<Self> {
+        Self::with_overlay(
+            model_dir,
+            camera_index,
+            fov_diag_deg,
+            Arc::new(AtomicBool::new(false)),
+        )
     }
 
     /// Like [`new`] but accepts an external overlay toggle flag.
@@ -325,7 +337,9 @@ impl NeuralNetInput {
                     run_mjpeg_tracker_loop(tracker, pose_tx, frame_tx, &shutdown_tracker);
                 }));
                 if let Err(e) = result {
-                    let msg = e.downcast_ref::<&str>().copied()
+                    let msg = e
+                        .downcast_ref::<&str>()
+                        .copied()
                         .or_else(|| e.downcast_ref::<String>().map(|s| s.as_str()))
                         .unwrap_or("unknown panic payload");
                     tracing::error!("neuralnet-tracker thread panicked: {msg}");
@@ -338,7 +352,13 @@ impl NeuralNetInput {
             .context("tracker thread exited before signalling init")?
             .context("tracker initialisation failed")?;
 
-        Ok(Self { rx: pose_rx, preview, overlay_enabled, shutdown, thread_lost: false })
+        Ok(Self {
+            rx: pose_rx,
+            preview,
+            overlay_enabled,
+            shutdown,
+            thread_lost: false,
+        })
     }
 
     /// YUYV path — decoupled capture and inference threads.
@@ -451,7 +471,9 @@ impl NeuralNetInput {
                     }
                 }));
                 if let Err(e) = result {
-                    let msg = e.downcast_ref::<&str>().copied()
+                    let msg = e
+                        .downcast_ref::<&str>()
+                        .copied()
                         .or_else(|| e.downcast_ref::<String>().map(|s| s.as_str()))
                         .unwrap_or("unknown panic payload");
                     tracing::error!("yuyv-capture thread panicked: {msg}");
@@ -555,7 +577,13 @@ impl NeuralNetInput {
             .context("inference thread exited before signalling init")?
             .context("model loading failed")?;
 
-        Ok(Self { rx: pose_rx, preview, overlay_enabled, shutdown, thread_lost: false })
+        Ok(Self {
+            rx: pose_rx,
+            preview,
+            overlay_enabled,
+            shutdown,
+            thread_lost: false,
+        })
     }
 
     /// Get a handle to the latest preview frame (JPEG bytes).
@@ -632,7 +660,9 @@ fn run_mjpeg_tracker_loop(
         if frame_counter.is_multiple_of(3) {
             let (pose, frame) = tracker.step_with_frame();
             if let Some(pose) = pose {
-                if !send_pose(&pose_tx, pose) { break; }
+                if !send_pose(&pose_tx, pose) {
+                    break;
+                }
             }
             if let Some(rgb) = frame {
                 let det = tracker.tracked_box();
@@ -640,11 +670,17 @@ fn run_mjpeg_tracker_loop(
                 let _ = frame_tx.try_send((rgb, det, lmks));
             }
         } else if let Some(pose) = tracker.step() {
-            if !send_pose(&pose_tx, pose) { break; }
+            if !send_pose(&pose_tx, pose) {
+                break;
+            }
         }
 
         match tracker.take_capture_step() {
-            None | Some(CaptureStep::Retry { wait: Duration::ZERO, .. }) => {}
+            None
+            | Some(CaptureStep::Retry {
+                wait: Duration::ZERO,
+                ..
+            }) => {}
             Some(CaptureStep::Retry { wait, .. }) => {
                 if sleep_unless_shutdown(wait, shutdown) {
                     info!("neuralnet tracker: shutdown");
@@ -769,7 +805,12 @@ fn encode_jpeg_preview(
 }
 
 /// Draw a 3×3 filled dot centred at `(x, y)`, clamped to image bounds.
-fn draw_dot(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, x: i32, y: i32, color: image::Rgb<u8>) {
+fn draw_dot(
+    img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+    x: i32,
+    y: i32,
+    color: image::Rgb<u8>,
+) {
     let (iw, ih) = (img.width() as i32, img.height() as i32);
     for dy in -1..=1 {
         for dx in -1..=1 {
@@ -783,9 +824,17 @@ fn draw_dot(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, x: i32, y: i3
 }
 
 /// Draw a single horizontal line segment at row `y` from column `x0` to `x1`, clamped.
-fn draw_h_line(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, y: i32, x0: i32, x1: i32, color: image::Rgb<u8>) {
+fn draw_h_line(
+    img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+    y: i32,
+    x0: i32,
+    x1: i32,
+    color: image::Rgb<u8>,
+) {
     let (iw, ih) = (img.width() as i32, img.height() as i32);
-    if y < 0 || y >= ih { return; }
+    if y < 0 || y >= ih {
+        return;
+    }
     for x in x0..=x1 {
         if x >= 0 && x < iw {
             img.put_pixel(x as u32, y as u32, color);
@@ -794,9 +843,17 @@ fn draw_h_line(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, y: i32, x0
 }
 
 /// Draw a single vertical line segment at column `x` from row `y0` to `y1`, clamped.
-fn draw_v_line(img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, x: i32, y0: i32, y1: i32, color: image::Rgb<u8>) {
+fn draw_v_line(
+    img: &mut image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+    x: i32,
+    y0: i32,
+    y1: i32,
+    color: image::Rgb<u8>,
+) {
     let (iw, ih) = (img.width() as i32, img.height() as i32);
-    if x < 0 || x >= iw { return; }
+    if x < 0 || x >= iw {
+        return;
+    }
     for y in y0..=y1 {
         if y >= 0 && y < ih {
             img.put_pixel(x as u32, y as u32, color);
@@ -816,9 +873,9 @@ fn draw_rect(
     let x1 = x + w as i32 - 1;
     let y1 = y + h as i32 - 1;
     for t in 0..2i32 {
-        draw_h_line(img, y + t,  x, x1, color); // top edge
+        draw_h_line(img, y + t, x, x1, color); // top edge
         draw_h_line(img, y1 - t, x, x1, color); // bottom edge
-        draw_v_line(img, x + t,  y, y1, color); // left edge
+        draw_v_line(img, x + t, y, y1, color); // left edge
         draw_v_line(img, x1 - t, y, y1, color); // right edge
     }
 }

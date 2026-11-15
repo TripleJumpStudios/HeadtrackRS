@@ -1,12 +1,9 @@
-use headtrack_core::pipeline::stage_names;
 use eframe::egui;
-use std::sync::atomic::AtomicBool;
-use headtrack_core::config::{
-    CameraConfig,
-    ProfileConfig,
-};
+use headtrack_core::config::{CameraConfig, ProfileConfig};
 use headtrack_core::input::{SourceKind, TobiiStatus};
+use headtrack_core::pipeline::stage_names;
 use headtrack_engine::{Engine, EngineCmd, EngineState};
+use std::sync::atomic::AtomicBool;
 use std::sync::{atomic::Ordering, Arc};
 
 // ── Camera enumeration ──────────────────────────────────────────────────────
@@ -33,14 +30,20 @@ fn enumerate_cameras() -> Vec<CameraDevice> {
     for entry in entries.flatten() {
         let fname = entry.file_name();
         let fname = fname.to_string_lossy();
-        let Some(idx_str) = fname.strip_prefix("video") else { continue };
-        let Ok(index) = idx_str.parse::<u32>() else { continue };
+        let Some(idx_str) = fname.strip_prefix("video") else {
+            continue;
+        };
+        let Ok(index) = idx_str.parse::<u32>() else {
+            continue;
+        };
 
         let sysfs_index = std::fs::read_to_string(entry.path().join("index"))
             .ok()
             .and_then(|s| s.trim().parse::<u32>().ok())
             .unwrap_or(u32::MAX);
-        if sysfs_index != 0 { continue; }
+        if sysfs_index != 0 {
+            continue;
+        }
 
         let name = std::fs::read_to_string(entry.path().join("name"))
             .unwrap_or_else(|_| format!("Camera {index}"))
@@ -146,7 +149,9 @@ fn steam_library_paths() -> Vec<String> {
     ];
     let mut paths = Vec::new();
     for vdf in &vdf_locations {
-        let Ok(contents) = std::fs::read_to_string(vdf) else { continue };
+        let Ok(contents) = std::fs::read_to_string(vdf) else {
+            continue;
+        };
         for line in contents.lines() {
             if let Some(p) = parse_vdf_path_line(line) {
                 if !paths.iter().any(|existing| existing == &p) {
@@ -268,13 +273,16 @@ const SIMCONNECT_XML_FULL: &str = r#"<?xml version="1.0" encoding="Windows-1252"
 /// Steam installs the prefix under `compatdata/<appid>` in whichever library the
 /// game lives in, so every library root is checked before the default locations.
 fn detect_msfs_simconnect_dir() -> Option<std::path::PathBuf> {
-    const SUFFIX: &str = "pfx/drive_c/users/steamuser/AppData/Roaming/Microsoft Flight Simulator 2024";
+    const SUFFIX: &str =
+        "pfx/drive_c/users/steamuser/AppData/Roaming/Microsoft Flight Simulator 2024";
     let home = std::env::var("HOME").unwrap_or_default();
 
     let mut roots: Vec<String> = steam_library_paths();
     roots.push(format!("{home}/.steam/steam"));
     roots.push(format!("{home}/.local/share/Steam"));
-    roots.push(format!("{home}/.var/app/com.valvesoftware.Steam/.local/share/Steam"));
+    roots.push(format!(
+        "{home}/.var/app/com.valvesoftware.Steam/.local/share/Steam"
+    ));
 
     for root in roots {
         let p = std::path::Path::new(&root)
@@ -297,7 +305,10 @@ pub enum SimConnectSetup {
     /// A new SimConnect.xml was created.
     Created(std::path::PathBuf),
     /// An existing file was amended; the original was copied to `backup`.
-    Amended { path: std::path::PathBuf, backup: std::path::PathBuf },
+    Amended {
+        path: std::path::PathBuf,
+        backup: std::path::PathBuf,
+    },
 }
 
 /// Ensure MSFS 2024's `SimConnect.xml` contains a port-5557 listener.
@@ -358,23 +369,36 @@ fn install_simconnect_xml(dir: &std::path::Path) -> std::io::Result<SimConnectSe
 
 struct HeadtrackTray {
     show_flag: Arc<AtomicBool>,
-    ctx_slot:  Arc<std::sync::OnceLock<egui::Context>>,
+    ctx_slot: Arc<std::sync::OnceLock<egui::Context>>,
 }
 
 impl ksni::Tray for HeadtrackTray {
-    fn id(&self) -> String { "headtrack-rs".into() }
-    fn title(&self) -> String { "HeadtrackRS".into() }
-    fn icon_name(&self) -> String { String::new() }
+    fn id(&self) -> String {
+        "headtrack-rs".into()
+    }
+    fn title(&self) -> String {
+        "HeadtrackRS".into()
+    }
+    fn icon_name(&self) -> String {
+        String::new()
+    }
 
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
-        let icon = eframe::icon_data::from_png_bytes(
-            include_bytes!("../../../assets/icons/headtrack-rs.png"),
-        ).expect("tray icon PNG");
+        let icon = eframe::icon_data::from_png_bytes(include_bytes!(
+            "../../../assets/icons/headtrack-rs.png"
+        ))
+        .expect("tray icon PNG");
         // StatusNotifierItem requires ARGB32 big-endian: bytes are [A, R, G, B] per pixel.
-        let argb: Vec<u8> = icon.rgba.chunks(4)
+        let argb: Vec<u8> = icon
+            .rgba
+            .chunks(4)
             .flat_map(|p| [p[3], p[0], p[1], p[2]])
             .collect();
-        vec![ksni::Icon { width: icon.width as i32, height: icon.height as i32, data: argb }]
+        vec![ksni::Icon {
+            width: icon.width as i32,
+            height: icon.height as i32,
+            data: argb,
+        }]
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
@@ -417,11 +441,11 @@ fn main() -> eframe::Result<()> {
     let (engine_tx, engine_rx) = std::sync::mpsc::channel::<Engine>();
     std::thread::Builder::new()
         .name("engine-init".into())
-        .spawn(move || {
-            match Engine::start() {
-                Ok(engine) => { let _ = engine_tx.send(engine); }
-                Err(e)     => eprintln!("headtrack-rs: engine failed to start: {e}"),
+        .spawn(move || match Engine::start() {
+            Ok(engine) => {
+                let _ = engine_tx.send(engine);
             }
+            Err(e) => eprintln!("headtrack-rs: engine failed to start: {e}"),
         })
         .expect("failed to spawn engine-init thread");
 
@@ -434,7 +458,7 @@ fn main() -> eframe::Result<()> {
     use ksni::blocking::TrayMethods;
     let _tray = HeadtrackTray {
         show_flag: Arc::clone(&tray_show),
-        ctx_slot:  Arc::clone(&tray_ctx),
+        ctx_slot: Arc::clone(&tray_ctx),
     }
     .assume_sni_available(true)
     .spawn()
@@ -444,7 +468,7 @@ fn main() -> eframe::Result<()> {
     // so update() runs even if the window is minimized and eframe has stopped repainting.
     {
         let show_flag = Arc::clone(&tray_show);
-        let ctx_slot  = Arc::clone(&tray_ctx);
+        let ctx_slot = Arc::clone(&tray_ctx);
         std::thread::Builder::new()
             .name("tray-repaint".into())
             .spawn(move || loop {
@@ -458,10 +482,9 @@ fn main() -> eframe::Result<()> {
             .ok();
     }
 
-    let icon = eframe::icon_data::from_png_bytes(
-        include_bytes!("../../../assets/icons/headtrack-rs.png"),
-    )
-    .expect("invalid window icon");
+    let icon =
+        eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icons/headtrack-rs.png"))
+            .expect("invalid window icon");
 
     // Restore the last window size. Validated and clamped by
     // `restored_window_size`, so a corrupt or stale value falls back to the
@@ -493,10 +516,10 @@ fn main() -> eframe::Result<()> {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const AXIS_NAMES:  [&str; 6] = ["yaw", "pitch", "roll", "x", "y", "z"];
+const AXIS_NAMES: [&str; 6] = ["yaw", "pitch", "roll", "x", "y", "z"];
 const AXIS_LABELS: [&str; 6] = ["Yaw", "Pitch", "Roll", "X", "Y", "Z"];
-const AXIS_UNITS:  [&str; 6] = ["\u{00b0}", "\u{00b0}", "\u{00b0}", "mm", "mm", "mm"];
-const ROT_MAX:   f32 = 30.0;
+const AXIS_UNITS: [&str; 6] = ["\u{00b0}", "\u{00b0}", "\u{00b0}", "mm", "mm", "mm"];
+const ROT_MAX: f32 = 30.0;
 const TRANS_MAX: f32 = 60.0;
 
 /// Ordered list of capture resolution presets (width, height, display label).
@@ -510,9 +533,12 @@ const CAMERA_RESOLUTIONS: [(u32, u32, &str); 3] = [
     (1280, 720, "Detail       1280×720 (recommended)"),
 ];
 
-
 fn axis_max(i: usize) -> f32 {
-    if i < 3 { ROT_MAX } else { TRANS_MAX }
+    if i < 3 {
+        ROT_MAX
+    } else {
+        TRANS_MAX
+    }
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -533,13 +559,13 @@ impl Tab {
     fn label(&self) -> &'static str {
         match self {
             Tab::Dashboard => "Dashboard",
-            Tab::Tuning    => "Tuning",
-            Tab::Profiles  => "Profiles",
-            Tab::Camera    => "Camera",
-            Tab::Tobii     => "Tobii",
-            Tab::Keybinds  => "Keybinds",
-            Tab::Settings  => "Settings",
-            Tab::Advanced  => "Advanced",
+            Tab::Tuning => "Tuning",
+            Tab::Profiles => "Profiles",
+            Tab::Camera => "Camera",
+            Tab::Tobii => "Tobii",
+            Tab::Keybinds => "Keybinds",
+            Tab::Settings => "Settings",
+            Tab::Advanced => "Advanced",
         }
     }
 
@@ -547,13 +573,13 @@ impl Tab {
         use egui_phosphor::regular as ph;
         match self {
             Tab::Dashboard => ph::GAUGE,
-            Tab::Tuning    => ph::SLIDERS_HORIZONTAL,
-            Tab::Profiles  => ph::STACK,
-            Tab::Camera    => ph::CAMERA,
-            Tab::Tobii     => ph::EYE,
-            Tab::Keybinds  => ph::KEYBOARD,
-            Tab::Settings  => ph::GEAR_SIX,
-            Tab::Advanced  => ph::WRENCH,
+            Tab::Tuning => ph::SLIDERS_HORIZONTAL,
+            Tab::Profiles => ph::STACK,
+            Tab::Camera => ph::CAMERA,
+            Tab::Tobii => ph::EYE,
+            Tab::Keybinds => ph::KEYBOARD,
+            Tab::Settings => ph::GEAR_SIX,
+            Tab::Advanced => ph::WRENCH,
         }
     }
 }
@@ -639,22 +665,22 @@ struct HeadtrackApp {
     /// engine: `Engine::start` binds the live pose socket and opens a camera.
     #[allow(dead_code)]
     engine: Option<Engine>,
-    state:  Arc<EngineState>,
-    cmd:    CmdSink,
+    state: Arc<EngineState>,
+    cmd: CmdSink,
 
-    active_tab:       Tab,
+    active_tab: Tab,
     /// The head source kind the GUI is mirroring; see `sync_source_kind`.
-    source_kind:      SourceKind,
+    source_kind: SourceKind,
     /// `HEADTRACK_GUI_FAKE_TOBII` dev fixture (tabs/tobii.rs), read once.
-    fake_tobii:       Option<TobiiStatus>,
+    fake_tobii: Option<TobiiStatus>,
     /// `HEADTRACK_GUI_SCREENSHOT=<file.png>` dev fixture: after the first
     /// ~3 s, save this window's own pixels there and close. Captures nothing
     /// but this viewport, so it cannot catch another app or the desktop.
-    shot_path:        Option<std::path::PathBuf>,
-    shot_frames:      u32,
+    shot_path: Option<std::path::PathBuf>,
+    shot_frames: u32,
     /// P11's one-click udev rule install (Tobii tab, PermissionDenied).
-    tobii_setup:      tobii_setup::TobiiSetup,
-    tuning_group:     TuningGroup,
+    tobii_setup: tobii_setup::TobiiSetup,
+    tuning_group: TuningGroup,
     dev_selected_axis: usize,
 
     // Per-axis filter + curve
@@ -670,36 +696,36 @@ struct HeadtrackApp {
     axis_active: [bool; 6],
 
     // Settings state
-    landmark_overlay:    bool,
-    tracking_enabled:    bool,
-    minimize_to_tray:    bool,
+    landmark_overlay: bool,
+    tracking_enabled: bool,
+    minimize_to_tray: bool,
     /// Reveals the Advanced tab. Mirrors `CameraConfig::show_advanced`.
-    show_advanced:       bool,
+    show_advanced: bool,
     /// Dashboard camera-feed panel height, converged each frame from the
     /// leftover space so the tab fills the window exactly. See `ui_dashboard`.
-    dash_feed_h:         f32,
+    dash_feed_h: f32,
     /// Window size as of the last frame, and when to write it to disk.
     ///
     /// Resizing fires every frame of the drag, so the write is debounced rather
     /// than done per frame — `camera.toml` is a whole load-modify-save.
-    last_window_size:    (f32, f32),
-    window_save_due:     Option<std::time::Instant>,
-    msfs_smoothing:      f32,
-    sc_smoothing:        f32,
-    recenter_flash:      Option<std::time::Instant>,
+    last_window_size: (f32, f32),
+    window_save_due: Option<std::time::Instant>,
+    msfs_smoothing: f32,
+    sc_smoothing: f32,
+    recenter_flash: Option<std::time::Instant>,
     /// How far the last drawn page ran past its column (0 when it fits).
     /// Recorded every frame; asserted on by `render_tests`.
     #[cfg_attr(not(test), allow(dead_code))]
-    page_overflow:       f32,
+    page_overflow: f32,
     /// How far the rail footer was drawn over the last nav row (0 when they
     /// clear). Recorded every frame; asserted on by `render_tests`.
     #[cfg_attr(not(test), allow(dead_code))]
-    rail_overlap:        f32,
+    rail_overlap: f32,
 
     // In-app hotkeys (fire only while this window is focused)
-    hotkey_recenter:     Option<egui::Key>,
-    hotkey_toggle:       Option<egui::Key>,
-    hotkey_capture:      Option<HotkeyAction>,
+    hotkey_recenter: Option<egui::Key>,
+    hotkey_toggle: Option<egui::Key>,
+    hotkey_capture: Option<HotkeyAction>,
     /// When capture began — a short grace period ignores input queued at the
     /// moment the bind button was clicked.
     hotkey_capture_started: std::time::Instant,
@@ -712,46 +738,46 @@ struct HeadtrackApp {
     hotkey_capture_initial: std::collections::HashSet<egui::Key>,
 
     // Camera selection
-    cameras:         Vec<CameraDevice>,
+    cameras: Vec<CameraDevice>,
     selected_camera: u32,
-    camera_fov:      f32,
+    camera_fov: f32,
     /// Last FOV value read from EngineState — used to detect engine-side changes.
     last_engine_fov: u32,
     /// Active capture resolution — index into CAMERA_RESOLUTIONS.
-    camera_res_idx:  usize,
+    camera_res_idx: usize,
     /// Text field for naming a new FOV preset before saving.
     fov_preset_name: String,
 
     // V4L2 Direct API cache
-    v4l2_device:      Option<v4l::Device>,
-    v4l2_controls:    Vec<v4l::control::Description>,
+    v4l2_device: Option<v4l::Device>,
+    v4l2_controls: Vec<v4l::control::Description>,
     v4l2_last_camera: u32,
     v4l2_optimize_status: Option<(String, std::time::Instant)>,
 
     // Profiles
-    profile_name:   String,
-    profiles_list:  Vec<(String, std::path::PathBuf)>,
+    profile_name: String,
+    profiles_list: Vec<(String, std::path::PathBuf)>,
     profile_status: String,
     /// True once any control has edited `profile` since the last save/load —
     /// drives the "unsaved changes" marker in the Profiles tab.
-    profile_dirty:  bool,
+    profile_dirty: bool,
     /// Profile awaiting delete confirmation (the row shows Cancel / Delete).
     profile_pending_delete: Option<std::path::PathBuf>,
 
     // Camera preview
-    preview_texture:  Option<egui::TextureHandle>,
+    preview_texture: Option<egui::TextureHandle>,
     preview_last_seq: u64,
 
     // Sidebar logo + GitHub icon
-    logo_texture:   Option<egui::TextureHandle>,
+    logo_texture: Option<egui::TextureHandle>,
     github_texture: Option<egui::TextureHandle>,
 
     // X-Plane installer
-    xplane_path:           String,
+    xplane_path: String,
     xplane_install_status: Option<(String, bool)>, // (message, success)
 
     // Star Citizen / Wine bridge installer
-    sc_prefix_path:    String,
+    sc_prefix_path: String,
     sc_install_status: Option<(String, bool)>,
     /// Result of the last MSFS SimConnect.xml setup attempt: (message, success).
     msfs_setup_status: Option<(String, bool)>,
@@ -761,16 +787,16 @@ struct HeadtrackApp {
     ipc_socket_label: String,
 
     // Diagnostics recorder
-    diag_size_limit_mb:    u32,
-    diag_recording_start:  Option<std::time::Instant>,
-    diag_recording_path:   std::path::PathBuf,
-    diag_directory:        String,
+    diag_size_limit_mb: u32,
+    diag_recording_start: Option<std::time::Instant>,
+    diag_recording_path: std::path::PathBuf,
+    diag_directory: String,
 }
 
 impl HeadtrackApp {
     fn new(engine: Engine) -> Self {
-        let state  = engine.state();
-        let cmd    = engine.cmd_sender();
+        let state = engine.state();
+        let cmd = engine.cmd_sender();
         // Mirror the engine: load the active source's profile (active.toml for
         // the webcam, active-tobii.toml for the Tobii) so the GUI's displayed
         // profile name and Tuning sliders match the running pipeline. Falls
@@ -784,9 +810,13 @@ impl HeadtrackApp {
         let source_kind = if fake_tobii.is_some() {
             SourceKind::Tobii
         } else {
-            state.head_source.lock().map(|s| s.kind()).unwrap_or(SourceKind::Webcam)
+            state
+                .head_source
+                .lock()
+                .map(|s| s.kind())
+                .unwrap_or(SourceKind::Webcam)
         };
-        let cfg    = tabs::tobii::active_profile_for(source_kind);
+        let cfg = tabs::tobii::active_profile_for(source_kind);
         #[cfg(feature = "dev-fixtures")]
         let page = std::env::var(tabs::tobii::PAGE_ENV)
             .ok()
@@ -801,71 +831,77 @@ impl HeadtrackApp {
         Self {
             ipc_socket_label: headtrack_engine::ipc_socket_path().display().to_string(),
             state,
-            cmd:              CmdSink::Engine(cmd),
-            engine:           Some(engine),
-            active_tab:       page.map_or(Tab::Dashboard, |p| p.0),
+            cmd: CmdSink::Engine(cmd),
+            engine: Some(engine),
+            active_tab: page.map_or(Tab::Dashboard, |p| p.0),
             source_kind,
             fake_tobii,
             #[cfg(feature = "dev-fixtures")]
-            shot_path:        std::env::var_os("HEADTRACK_GUI_SCREENSHOT").map(Into::into),
+            shot_path: std::env::var_os("HEADTRACK_GUI_SCREENSHOT").map(Into::into),
             #[cfg(not(feature = "dev-fixtures"))]
-            shot_path:        None,
-            shot_frames:      0,
-            tobii_setup:      tobii_setup::TobiiSetup::default(),
-            tuning_group:     page.map_or(TuningGroup::default(), |p| p.1),
+            shot_path: None,
+            shot_frames: 0,
+            tobii_setup: tobii_setup::TobiiSetup::default(),
+            tuning_group: page.map_or(TuningGroup::default(), |p| p.1),
             dev_selected_axis: 0,
             axis_active: [true; 6],
-            landmark_overlay:  false,
-            tracking_enabled:  true,
-            minimize_to_tray:  camera_cfg.minimize_to_tray,
-            show_advanced:     camera_cfg.show_advanced,
-            dash_feed_h:       240.0,
-            last_window_size:  (0.0, 0.0),
-            window_save_due:   None,
-            msfs_smoothing:    camera_cfg.msfs_camera_smoothing,
-            sc_smoothing:      camera_cfg.sc_output_smoothing,
-            recenter_flash:    None,
-            page_overflow:     0.0,
-            rail_overlap:      0.0,
-            hotkey_recenter:   camera_cfg.hotkey_recenter.as_deref().and_then(egui::Key::from_name),
-            hotkey_toggle:     camera_cfg.hotkey_toggle.as_deref().and_then(egui::Key::from_name),
-            hotkey_capture:    None,
+            landmark_overlay: false,
+            tracking_enabled: true,
+            minimize_to_tray: camera_cfg.minimize_to_tray,
+            show_advanced: camera_cfg.show_advanced,
+            dash_feed_h: 240.0,
+            last_window_size: (0.0, 0.0),
+            window_save_due: None,
+            msfs_smoothing: camera_cfg.msfs_camera_smoothing,
+            sc_smoothing: camera_cfg.sc_output_smoothing,
+            recenter_flash: None,
+            page_overflow: 0.0,
+            rail_overlap: 0.0,
+            hotkey_recenter: camera_cfg
+                .hotkey_recenter
+                .as_deref()
+                .and_then(egui::Key::from_name),
+            hotkey_toggle: camera_cfg
+                .hotkey_toggle
+                .as_deref()
+                .and_then(egui::Key::from_name),
+            hotkey_capture: None,
             hotkey_capture_started: std::time::Instant::now(),
             rebind_clicked_at: None,
             hotkey_capture_initial: std::collections::HashSet::new(),
-            cameras:         enumerate_cameras(),
+            cameras: enumerate_cameras(),
             selected_camera: initial_camera,
-            camera_fov:      camera_cfg.fov_diag_deg,
+            camera_fov: camera_cfg.fov_diag_deg,
             last_engine_fov: camera_cfg.fov_diag_deg.to_bits(),
-            camera_res_idx:  CAMERA_RESOLUTIONS
+            camera_res_idx: CAMERA_RESOLUTIONS
                 .iter()
                 .position(|(w, h, _)| (*w, *h) == camera_cfg.camera_resolution)
                 .unwrap_or(CAMERA_RES_DEFAULT_IDX),
             fov_preset_name: String::new(),
-            v4l2_device:     None,
-            v4l2_controls:   Vec::new(),
+            v4l2_device: None,
+            v4l2_controls: Vec::new(),
             v4l2_last_camera: u32::MAX,
             v4l2_optimize_status: None,
-            profile_name:    cfg.name.clone(),
-            profile:         cfg,
-            profiles_list:   ProfileConfig::list_profiles(),
-            profile_status:  String::new(),
-            profile_dirty:   false,
+            profile_name: cfg.name.clone(),
+            profile: cfg,
+            profiles_list: ProfileConfig::list_profiles(),
+            profile_status: String::new(),
+            profile_dirty: false,
             profile_pending_delete: None,
-            preview_texture:  None,
+            preview_texture: None,
             preview_last_seq: 0,
-            logo_texture:     None,
-            github_texture:   None,
-            xplane_path:           detect_xplane12_path(),
+            logo_texture: None,
+            github_texture: None,
+            xplane_path: detect_xplane12_path(),
             xplane_install_status: None,
-            sc_prefix_path:    detect_sc_wine_prefix(),
+            sc_prefix_path: detect_sc_wine_prefix(),
             sc_install_status: None,
             msfs_setup_status: None,
             sc_install_pending: None,
-            diag_size_limit_mb:   50,
+            diag_size_limit_mb: 50,
             diag_recording_start: None,
-            diag_recording_path:  std::path::PathBuf::new(),
-            diag_directory:       camera_cfg.diag_directory,
+            diag_recording_path: std::path::PathBuf::new(),
+            diag_directory: camera_cfg.diag_directory,
         }
     }
 
@@ -888,10 +924,15 @@ impl HeadtrackApp {
     fn toggle_tracking(&mut self) {
         self.tracking_enabled = !self.tracking_enabled;
         for (i, &axis) in AXIS_NAMES.iter().enumerate() {
-            let v = if self.tracking_enabled && self.axis_active[i] { 1.0 } else { 0.0 };
+            let v = if self.tracking_enabled && self.axis_active[i] {
+                1.0
+            } else {
+                0.0
+            };
             self.send_set(stage_names::AXIS_MASK, axis, v);
         }
-        self.cmd.send(EngineCmd::SimConnectEnabled(self.tracking_enabled));
+        self.cmd
+            .send(EngineCmd::SimConnectEnabled(self.tracking_enabled));
     }
 
     /// Persist the current hotkey bindings to `camera.toml`.
@@ -939,7 +980,10 @@ impl HeadtrackApp {
             self.window_save_due = Some(std::time::Instant::now() + SETTLE);
         }
 
-        if self.window_save_due.is_some_and(|t| std::time::Instant::now() >= t) {
+        if self
+            .window_save_due
+            .is_some_and(|t| std::time::Instant::now() >= t)
+        {
             self.window_save_due = None;
             let mut cfg = CameraConfig::load();
             cfg.window_size = Some(self.last_window_size);
@@ -954,7 +998,12 @@ impl HeadtrackApp {
             // must not be captured.
             let pressed = ctx.input(|i| {
                 i.events.iter().find_map(|e| match e {
-                    egui::Event::Key { key, pressed: true, repeat: false, .. } => Some(*key),
+                    egui::Event::Key {
+                        key,
+                        pressed: true,
+                        repeat: false,
+                        ..
+                    } => Some(*key),
                     _ => None,
                 })
             });
@@ -1027,7 +1076,9 @@ impl HeadtrackApp {
 
     #[cfg(feature = "dev-fixtures")]
     fn fixture_screenshot(&mut self, ctx: &egui::Context) {
-        let Some(path) = self.shot_path.clone() else { return };
+        let Some(path) = self.shot_path.clone() else {
+            return;
+        };
         self.shot_frames += 1;
         if self.shot_frames == 90 {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
@@ -1077,7 +1128,6 @@ pub(crate) use ui::theme as colors;
 /// Version string shown in the status bar and the About card.
 pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-
 // ── Splash screen ─────────────────────────────────────────────────────────────
 
 struct SplashScreen {
@@ -1090,7 +1140,12 @@ struct SplashScreen {
 impl SplashScreen {
     fn new() -> Self {
         let now = std::time::Instant::now();
-        Self { start_time: now, last_frame: now, dot_offset: egui::Vec2::ZERO, ring_angle: 0.0 }
+        Self {
+            start_time: now,
+            last_frame: now,
+            dot_offset: egui::Vec2::ZERO,
+            ring_angle: 0.0,
+        }
     }
 
     fn elapsed(&self) -> f32 {
@@ -1106,22 +1161,29 @@ impl SplashScreen {
 
     /// Draw the outer ring, cardinal ticks, and rotating dashed inner ring.
     fn draw_rings_and_ticks(
-        painter:    &egui::Painter,
-        center:     egui::Pos2,
-        outer_r:    f32,
-        inner_r:    f32,
+        painter: &egui::Painter,
+        center: egui::Pos2,
+        outer_r: f32,
+        inner_r: f32,
         ring_angle: &mut f32,
-        dt:         f32,
+        dt: f32,
     ) {
-        painter.circle_stroke(center, outer_r, egui::Stroke::new(1.0_f32, egui::Color32::from_white_alpha(20)));
+        painter.circle_stroke(
+            center,
+            outer_r,
+            egui::Stroke::new(1.0_f32, egui::Color32::from_white_alpha(20)),
+        );
 
         let tick_stroke = egui::Stroke::new(2.0_f32, colors::ORANGE);
-        let tick_outer  = outer_r - 2.0;
-        let tick_inner  = tick_outer - 16.0;
+        let tick_outer = outer_r - 2.0;
+        let tick_inner = tick_outer - 16.0;
         for &deg in &[0.0_f32, 90.0, 180.0, 270.0] {
             let rad = deg.to_radians();
             let dir = egui::Vec2::new(rad.cos(), rad.sin());
-            painter.line_segment([center + dir * tick_inner, center + dir * tick_outer], tick_stroke);
+            painter.line_segment(
+                [center + dir * tick_inner, center + dir * tick_outer],
+                tick_stroke,
+            );
         }
 
         *ring_angle += 1.8 * dt;
@@ -1132,7 +1194,10 @@ impl SplashScreen {
                 let a2 = *ring_angle + (i as f32 + 0.8) * std::f32::consts::TAU / dash_count as f32;
                 let p1 = center + egui::Vec2::new(a1.cos(), a1.sin()) * inner_r;
                 let p2 = center + egui::Vec2::new(a2.cos(), a2.sin()) * inner_r;
-                painter.line_segment([p1, p2], egui::Stroke::new(1.5_f32, egui::Color32::from_white_alpha(40)));
+                painter.line_segment(
+                    [p1, p2],
+                    egui::Stroke::new(1.5_f32, egui::Color32::from_white_alpha(40)),
+                );
             }
         }
     }
@@ -1140,30 +1205,42 @@ impl SplashScreen {
     /// Advance the sweep dot toward its next cardinal target, return new offset.
     ///
     /// 1.2-second looping cycle: center → left → right → up → down → center.
-    fn advance_dot(dot_offset: &mut egui::Vec2, elapsed: f32, dt: f32, travel_r: f32) -> egui::Vec2 {
-        let cycle  = elapsed % 1.2;
-        let target = if      cycle < 0.2 { egui::Vec2::ZERO }
-                     else if cycle < 0.4 { egui::Vec2::new(-travel_r, 0.0) }
-                     else if cycle < 0.6 { egui::Vec2::new( travel_r, 0.0) }
-                     else if cycle < 0.8 { egui::Vec2::new(0.0, -travel_r) }
-                     else if cycle < 1.0 { egui::Vec2::new(0.0,  travel_r) }
-                     else                { egui::Vec2::ZERO };
+    fn advance_dot(
+        dot_offset: &mut egui::Vec2,
+        elapsed: f32,
+        dt: f32,
+        travel_r: f32,
+    ) -> egui::Vec2 {
+        let cycle = elapsed % 1.2;
+        let target = if cycle < 0.2 {
+            egui::Vec2::ZERO
+        } else if cycle < 0.4 {
+            egui::Vec2::new(-travel_r, 0.0)
+        } else if cycle < 0.6 {
+            egui::Vec2::new(travel_r, 0.0)
+        } else if cycle < 0.8 {
+            egui::Vec2::new(0.0, -travel_r)
+        } else if cycle < 1.0 {
+            egui::Vec2::new(0.0, travel_r)
+        } else {
+            egui::Vec2::ZERO
+        };
         *dot_offset += (target - *dot_offset) * (20.0 * dt).min(1.0);
         *dot_offset
     }
 
     fn draw(&mut self, ui: &mut egui::Ui, ready: bool) {
-        let now     = std::time::Instant::now();
-        let dt      = now.duration_since(self.last_frame).as_secs_f32().min(0.05);
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(self.last_frame).as_secs_f32().min(0.05);
         self.last_frame = now;
         let elapsed = now.duration_since(self.start_time).as_secs_f32();
 
-        let painter  = ui.painter();
-        let rect     = ui.max_rect();
-        let center   = rect.center();
-        let outer_r  = 120.0_f32;
-        let inner_r  =  96.0_f32;
-        let travel_r =  72.0_f32;
+        let painter = ui.painter();
+        let rect = ui.max_rect();
+        let center = rect.center();
+        let outer_r = 120.0_f32;
+        let inner_r = 96.0_f32;
+        let travel_r = 72.0_f32;
 
         Self::draw_rings_and_ticks(painter, center, outer_r, inner_r, &mut self.ring_angle, dt);
 
@@ -1174,25 +1251,42 @@ impl SplashScreen {
         // Telemetry — top left
         let mono_sm = egui::FontId::monospace(12.0);
         let tl = rect.left_top() + egui::Vec2::new(22.0, 22.0);
-        painter.text(tl, egui::Align2::LEFT_TOP,
+        painter.text(
+            tl,
+            egui::Align2::LEFT_TOP,
             format!("SYS_UPTIME: {:.3}s", elapsed + 10.0),
-            mono_sm.clone(), colors::DIMMER);
-        painter.text(tl + egui::Vec2::new(0.0, 15.0), egui::Align2::LEFT_TOP,
+            mono_sm.clone(),
+            colors::DIMMER,
+        );
+        painter.text(
+            tl + egui::Vec2::new(0.0, 15.0),
+            egui::Align2::LEFT_TOP,
             format!("DOT_POS:   [{:.0}, {:.0}]", dot_pos.x, dot_pos.y),
-            mono_sm.clone(), colors::DIMMER);
+            mono_sm.clone(),
+            colors::DIMMER,
+        );
 
         // Telemetry — top right (label row + value row)
         let tr = rect.right_top() + egui::Vec2::new(-210.0, 22.0);
-        painter.text(tr, egui::Align2::LEFT_TOP,
+        painter.text(
+            tr,
+            egui::Align2::LEFT_TOP,
             "STATUS   SENSOR    LAT",
-            mono_sm.clone(), colors::DIMMER);
+            mono_sm.clone(),
+            colors::DIMMER,
+        );
         let (telem_val, telem_color) = if ready {
             ("READY    ONLINE    <3ms", colors::OK)
         } else {
-            ("INIT     PENDING   ---",  colors::ORANGE)
+            ("INIT     PENDING   ---", colors::ORANGE)
         };
-        painter.text(tr + egui::Vec2::new(0.0, 15.0), egui::Align2::LEFT_TOP,
-            telem_val, egui::FontId::new(11.0, colors::mono_bold()), telem_color);
+        painter.text(
+            tr + egui::Vec2::new(0.0, 15.0),
+            egui::Align2::LEFT_TOP,
+            telem_val,
+            egui::FontId::new(11.0, colors::mono_bold()),
+            telem_color,
+        );
 
         // Brand: the same two-tone wordmark as the nav rail, no tagline.
         let brand = ui.fonts(|f| f.layout_job(ui::shell::wordmark(22.0)));
@@ -1240,35 +1334,37 @@ const MIN_SPLASH_SECS: f32 = 0.5;
 enum AppState {
     /// Engine loading in background — show splash animation.
     Splash {
-        rx:     std::sync::mpsc::Receiver<Engine>,
+        rx: std::sync::mpsc::Receiver<Engine>,
         engine: Option<Engine>, // held here once ready, until MIN_SPLASH_SECS elapses
         splash: SplashScreen,
     },
     /// Engine ready — fade from black into the main dashboard.
     FadingIn {
-        app:        Box<HeadtrackApp>,
+        app: Box<HeadtrackApp>,
         fade_start: std::time::Instant,
     },
     /// Normal operation.
-    Running {
-        app: Box<HeadtrackApp>,
-    },
+    Running { app: Box<HeadtrackApp> },
 }
 
 struct AppWrapper {
-    state:     Option<AppState>, // Option so we can take() during update
+    state: Option<AppState>, // Option so we can take() during update
     tray_show: Arc<AtomicBool>,
-    tray_ctx:  Arc<std::sync::OnceLock<egui::Context>>,
+    tray_ctx: Arc<std::sync::OnceLock<egui::Context>>,
 }
 
 impl AppWrapper {
     fn new(
         rx: std::sync::mpsc::Receiver<Engine>,
         tray_show: Arc<AtomicBool>,
-        tray_ctx:  Arc<std::sync::OnceLock<egui::Context>>,
+        tray_ctx: Arc<std::sync::OnceLock<egui::Context>>,
     ) -> Self {
         Self {
-            state: Some(AppState::Splash { rx, engine: None, splash: SplashScreen::new() }),
+            state: Some(AppState::Splash {
+                rx,
+                engine: None,
+                splash: SplashScreen::new(),
+            }),
             tray_show,
             tray_ctx,
         }
@@ -1304,18 +1400,24 @@ impl eframe::App for AppWrapper {
 
         self.state = Some(match state {
             // ── Splash: draw HUD, collect engine, respect minimum duration ──
-            AppState::Splash { rx, mut engine, mut splash } => {
+            AppState::Splash {
+                rx,
+                mut engine,
+                mut splash,
+            } => {
                 // Collect the engine as soon as it's ready (non-blocking).
                 if engine.is_none() {
-                    if let Ok(e) = rx.try_recv() { engine = Some(e); }
+                    if let Ok(e) = rx.try_recv() {
+                        engine = Some(e);
+                    }
                 }
-                let ready   = engine.is_some();
+                let ready = engine.is_some();
                 let elapsed = splash.elapsed();
                 splash.show(ctx, ready);
 
                 if ready && elapsed >= MIN_SPLASH_SECS {
                     AppState::FadingIn {
-                        app:        Box::new(HeadtrackApp::new(engine.unwrap())),
+                        app: Box::new(HeadtrackApp::new(engine.unwrap())),
                         fade_start: std::time::Instant::now(),
                     }
                 } else {
@@ -1324,7 +1426,10 @@ impl eframe::App for AppWrapper {
             }
 
             // ── Fade-in: render main app then overlay dimming rect ────────
-            AppState::FadingIn { mut app, fade_start } => {
+            AppState::FadingIn {
+                mut app,
+                fade_start,
+            } => {
                 app.update(ctx, frame);
 
                 const FADE_SECS: f32 = 0.30;
@@ -1336,7 +1441,11 @@ impl eframe::App for AppWrapper {
                         egui::Order::Foreground,
                         egui::Id::new("fade_overlay"),
                     ))
-                    .rect_filled(ctx.screen_rect(), 0.0, egui::Color32::from_black_alpha(a));
+                    .rect_filled(
+                        ctx.screen_rect(),
+                        0.0,
+                        egui::Color32::from_black_alpha(a),
+                    );
                     ctx.request_repaint();
                     AppState::FadingIn { app, fade_start }
                 } else {
@@ -1365,7 +1474,11 @@ impl eframe::App for HeadtrackApp {
         self.handle_hotkeys(ctx);
 
         // Poll background wine-bridge setup.
-        if let Some(result) = self.sc_install_pending.as_ref().and_then(|rx| rx.try_recv().ok()) {
+        if let Some(result) = self
+            .sc_install_pending
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok())
+        {
             self.sc_install_status = Some(result);
             self.sc_install_pending = None;
         }
@@ -1392,8 +1505,12 @@ impl HeadtrackApp {
     /// this is called, so the headless render tests can call `draw` alone.
     fn draw(&mut self, ctx: &egui::Context) {
         // Read live state directly from the engine — zero socket/IPC overhead.
-        let pose      = *self.state.latest_pose.lock().unwrap_or_else(|e| e.into_inner());
-        let fps       = *self.state.fps.lock().unwrap_or_else(|e| e.into_inner());
+        let pose = *self
+            .state
+            .latest_pose
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let fps = *self.state.fps.lock().unwrap_or_else(|e| e.into_inner());
         let connected = self.state.camera_connected.load(Ordering::Relaxed);
         let pose_vals = [pose.yaw, pose.pitch, pose.roll, pose.x, pose.y, pose.z];
 
@@ -1416,13 +1533,13 @@ impl HeadtrackApp {
                     .push_id(tab.label(), |ui| {
                         ui::page(ui, |ui| match tab {
                             Tab::Dashboard => self.ui_dashboard(ui, &pose_vals),
-                            Tab::Tuning    => self.ui_tuning(ui, &pose_vals),
-                            Tab::Profiles  => self.ui_profiles(ui),
-                            Tab::Camera    => self.ui_camera(ui),
-                            Tab::Tobii     => self.ui_tobii(ui),
-                            Tab::Keybinds  => self.ui_keybinds(ui),
-                            Tab::Settings  => self.ui_settings(ui),
-                            Tab::Advanced  => self.ui_advanced(ui, &pose_vals),
+                            Tab::Tuning => self.ui_tuning(ui, &pose_vals),
+                            Tab::Profiles => self.ui_profiles(ui),
+                            Tab::Camera => self.ui_camera(ui),
+                            Tab::Tobii => self.ui_tobii(ui),
+                            Tab::Keybinds => self.ui_keybinds(ui),
+                            Tab::Settings => self.ui_settings(ui),
+                            Tab::Advanced => self.ui_advanced(ui, &pose_vals),
                         })
                     })
                     .inner;
@@ -1572,7 +1689,10 @@ mod simconnect_setup_tests {
         let d = std::env::temp_dir().join(format!(
             "ht-simconnect-{tag}-{}-{:?}",
             std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
         std::fs::create_dir_all(&d).unwrap();
         d
@@ -1600,7 +1720,10 @@ mod simconnect_setup_tests {
         let r = install_simconnect_xml(&d).expect("second");
         assert!(matches!(r, SimConnectSetup::AlreadyConfigured));
         let after_second = std::fs::read_to_string(d.join("SimConnect.xml")).unwrap();
-        assert_eq!(after_first, after_second, "second run must not touch the file");
+        assert_eq!(
+            after_first, after_second,
+            "second run must not touch the file"
+        );
         assert_eq!(after_second.matches("<SimConnect.Comm>").count(), 1);
         let _ = std::fs::remove_dir_all(&d);
     }
@@ -1623,14 +1746,24 @@ mod simconnect_setup_tests {
         std::fs::write(&path, theirs).unwrap();
 
         let r = install_simconnect_xml(&d).expect("amend");
-        let SimConnectSetup::Amended { backup, .. } = r else { panic!("expected Amended") };
+        let SimConnectSetup::Amended { backup, .. } = r else {
+            panic!("expected Amended")
+        };
 
         let now = std::fs::read_to_string(&path).unwrap();
         assert!(now.contains("SomeOtherTool"), "their entry must survive");
         assert!(now.contains("<Port>500</Port>"), "their port must survive");
         assert!(now.contains("<Port>5557</Port>"), "ours must be added");
-        assert_eq!(now.matches("</SimBase.Document>").count(), 1, "still one document");
-        assert_eq!(now.matches("<SimConnect.Comm>").count(), 2, "two comm blocks");
+        assert_eq!(
+            now.matches("</SimBase.Document>").count(),
+            1,
+            "still one document"
+        );
+        assert_eq!(
+            now.matches("<SimConnect.Comm>").count(),
+            2,
+            "two comm blocks"
+        );
 
         // the untouched original is recoverable
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), theirs);
@@ -1665,7 +1798,10 @@ mod steam_vdf_tests {
     #[test]
     fn extracts_the_path_without_its_closing_quote() {
         let line = "\t\t\"path\"\t\t\"/mnt/steam/SteamLibrary\"";
-        assert_eq!(parse_vdf_path_line(line).as_deref(), Some("/mnt/steam/SteamLibrary"));
+        assert_eq!(
+            parse_vdf_path_line(line).as_deref(),
+            Some("/mnt/steam/SteamLibrary")
+        );
     }
 
     /// The regression this guards: a bounded split leaves the closing quote on
@@ -1677,7 +1813,13 @@ mod steam_vdf_tests {
         let p = parse_vdf_path_line(line).expect("parsed");
         assert!(!p.contains('"'), "no stray quote: {p:?}");
         assert!(!p.ends_with('/'), "no trailing separator: {p:?}");
-        assert_eq!(std::path::Path::new(&p).join("steamapps").file_name().unwrap(), "steamapps");
+        assert_eq!(
+            std::path::Path::new(&p)
+                .join("steamapps")
+                .file_name()
+                .unwrap(),
+            "steamapps"
+        );
     }
 
     #[test]

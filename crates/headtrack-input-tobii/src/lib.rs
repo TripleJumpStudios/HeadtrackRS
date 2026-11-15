@@ -14,12 +14,12 @@ pub mod neutral;
 #[cfg(test)]
 mod parity;
 pub mod source;
-pub use source::TobiiInput;
 use anyhow::ensure;
 use headtrack_tobii_device::image::GrayImage;
 use nalgebra::{Matrix3, Rotation3, Vector3};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+pub use source::TobiiInput;
 use std::sync::Arc;
 use std::{path::Path, time::Instant};
 use thiserror::Error;

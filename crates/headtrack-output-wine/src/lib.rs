@@ -20,8 +20,7 @@
 
 use headtrack_core::Pose;
 use libc::{
-    MAP_FAILED, MAP_SHARED, O_CREAT, O_RDWR, PROT_READ, PROT_WRITE,
-    S_IRUSR, S_IWUSR, c_int,
+    c_int, MAP_FAILED, MAP_SHARED, O_CREAT, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR,
 };
 use std::ffi::CStr;
 use std::ptr;
@@ -49,12 +48,12 @@ struct WineShmPose {
     /// Monotonic write counter.  Zero means no data yet.  The companion
     /// polls this and only copies to FT_SharedMem when it changes.
     sequence: u64,
-    yaw:   f64,  // degrees, right = positive
-    pitch: f64,  // degrees, up = positive
-    roll:  f64,  // degrees, right ear down = positive
-    x:     f64,  // mm (SIGN_X applied)
-    y:     f64,  // mm, up = positive
-    z:     f64,  // mm, toward screen = positive
+    yaw: f64,   // degrees, right = positive
+    pitch: f64, // degrees, up = positive
+    roll: f64,  // degrees, right ear down = positive
+    x: f64,     // mm (SIGN_X applied)
+    y: f64,     // mm, up = positive
+    z: f64,     // mm, toward screen = positive
 }
 
 const SHM_SIZE: usize = std::mem::size_of::<WineShmPose>();
@@ -183,7 +182,10 @@ impl WineShmWriter {
     /// A naive `speed * dt` reaches 1.0 at dt = 1/speed and keeps going, which
     /// is what produced the stepping this replaces.
     #[inline]
-    fn smooth_step(&mut self, target: (f64, f64, f64, f64, f64, f64)) -> (f64, f64, f64, f64, f64, f64) {
+    fn smooth_step(
+        &mut self,
+        target: (f64, f64, f64, f64, f64, f64),
+    ) -> (f64, f64, f64, f64, f64, f64) {
         let now = std::time::Instant::now();
         let dt = self
             .last_write
@@ -231,9 +233,9 @@ impl WineShmWriter {
     pub fn write(&mut self, pose: &Pose) {
         self.sequence = self.sequence.wrapping_add(1);
         let (yaw, pitch, roll, x, y, z) = self.smooth_step((
-            pose.yaw   as f64,
+            pose.yaw as f64,
             pose.pitch as f64,
-            pose.roll  as f64,
+            pose.roll as f64,
             SIGN_X * pose.x as f64,
             pose.y as f64,
             pose.z as f64,
@@ -299,7 +301,6 @@ impl Drop for WineShmWriter {
     }
 }
 
-
 #[cfg(test)]
 mod smoothing_tests {
     use super::*;
@@ -350,7 +351,10 @@ mod smoothing_tests {
             assert!(yaw <= T.0 + 1e-9, "must never overshoot: {yaw}");
             prev = yaw;
         }
-        assert!(prev > T.0 * 0.9, "should have substantially converged, got {prev}");
+        assert!(
+            prev > T.0 * 0.9,
+            "should have substantially converged, got {prev}"
+        );
     }
 
     /// A stall must not teleport the accumulator. Without the dt clamp a long
@@ -363,7 +367,10 @@ mod smoothing_tests {
         // simulate a 5-second stall
         w.last_write = Some(std::time::Instant::now() - std::time::Duration::from_secs(5));
         let (yaw, ..) = w.smooth_step(T);
-        assert!(yaw < T.0, "a stall must not snap straight to target, got {yaw}");
+        assert!(
+            yaw < T.0,
+            "a stall must not snap straight to target, got {yaw}"
+        );
     }
 
     /// Recenter drops the accumulator so the next frame snaps to the new zero.
@@ -374,7 +381,11 @@ mod smoothing_tests {
         std::thread::sleep(std::time::Duration::from_millis(5));
         w.smooth_step(T);
         w.reset_smoothing();
-        assert_eq!(w.smooth_step(T), T, "after reset the target is emitted as-is");
+        assert_eq!(
+            w.smooth_step(T),
+            T,
+            "after reset the target is emitted as-is"
+        );
     }
 
     /// Every axis is smoothed, not just the one the tests poke.
@@ -384,7 +395,10 @@ mod smoothing_tests {
         w.smooth_step((0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
         std::thread::sleep(std::time::Duration::from_millis(5));
         let out = w.smooth_step((10.0, 10.0, 10.0, 10.0, 10.0, 10.0));
-        for (i, v) in [out.0, out.1, out.2, out.3, out.4, out.5].iter().enumerate() {
+        for (i, v) in [out.0, out.1, out.2, out.3, out.4, out.5]
+            .iter()
+            .enumerate()
+        {
             assert!(*v > 0.0 && *v < 10.0, "axis {i} not smoothed: {v}");
         }
     }
@@ -465,7 +479,15 @@ mod reattach_tests {
             eprintln!("skipping: /dev/shm unavailable in this environment");
             return;
         };
-        first.write(&Pose { yaw: 1.0, pitch: 2.0, roll: 3.0, x: 4.0, y: 5.0, z: 6.0, timestamp_us: 0 });
+        first.write(&Pose {
+            yaw: 1.0,
+            pitch: 2.0,
+            roll: 3.0,
+            x: 4.0,
+            y: 5.0,
+            z: 6.0,
+            timestamp_us: 0,
+        });
         let before = inode_of().expect("segment exists while open");
         drop(first);
 
@@ -479,7 +501,10 @@ mod reattach_tests {
 
         let second = seg.open().expect("reopen");
         let after = inode_of().expect("segment exists");
-        assert_eq!(after, before, "a restart must reattach to the same inode, not create a new one");
+        assert_eq!(
+            after, before,
+            "a restart must reattach to the same inode, not create a new one"
+        );
 
         drop(second);
     }
@@ -499,7 +524,15 @@ mod reattach_tests {
             eprintln!("skipping: /dev/shm unavailable in this environment");
             return;
         };
-        w.write(&Pose { yaw: 30.0, pitch: 0.0, roll: 0.0, x: 0.0, y: 0.0, z: 0.0, timestamp_us: 0 });
+        w.write(&Pose {
+            yaw: 30.0,
+            pitch: 0.0,
+            roll: 0.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            timestamp_us: 0,
+        });
         assert!(w.sequence > 0, "precondition: we wrote something");
         drop(w);
 
@@ -507,7 +540,10 @@ mod reattach_tests {
         let raw = std::fs::read(&seg.path).expect("segment still exists");
         assert!(raw.len() >= 8, "segment retains its size");
         let seq = u64::from_ne_bytes(raw[..8].try_into().unwrap());
-        assert_eq!(seq, 0, "sequence must read as 'no tracker' after a clean shutdown");
+        assert_eq!(
+            seq, 0,
+            "sequence must read as 'no tracker' after a clean shutdown"
+        );
     }
 
     /// The three start orders that matter, as a single statement of intent:
@@ -526,7 +562,11 @@ mod reattach_tests {
             let mut w = seg.open().expect("reopen");
             w.write(&Pose::zero(0));
             assert!(w.sequence > 0, "each run publishes live data");
-            assert_eq!(seg.inode(), first, "every restart must reuse the same inode");
+            assert_eq!(
+                seg.inode(),
+                first,
+                "every restart must reuse the same inode"
+            );
             drop(w);
         }
     }

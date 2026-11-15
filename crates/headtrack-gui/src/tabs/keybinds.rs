@@ -54,7 +54,9 @@ impl HeadtrackApp {
                 .map(|l| f.layout_no_wrap(l, font.clone(), colors::TEXT).rect.width())
                 .fold(0.0_f32, f32::max)
         });
-        widest.ceil().clamp(LABEL_MIN_W, (ui.available_width() * 0.4).max(LABEL_MIN_W))
+        widest
+            .ceil()
+            .clamp(LABEL_MIN_W, (ui.available_width() * 0.4).max(LABEL_MIN_W))
     }
 
     /// Group header: heading on the left, the tier's state mark beside it,
@@ -197,9 +199,14 @@ impl HeadtrackApp {
                 });
 
             ui.add_space(8.0);
-            ui::disclosure(ui, "desktop_shortcuts", "Use keys while a sim has focus", |ui| {
-                self.ui_desktop_shortcuts(ui, label_w);
-            });
+            ui::disclosure(
+                ui,
+                "desktop_shortcuts",
+                "Use keys while a sim has focus",
+                |ui| {
+                    self.ui_desktop_shortcuts(ui, label_w);
+                },
+            );
         });
     }
 
@@ -277,7 +284,8 @@ impl HeadtrackApp {
         if waiting {
             ui.add_space(4.0);
             ui::activity(ui, "Opening your desktop's shortcut settings\u{2026}");
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(250));
         }
     }
 
@@ -365,7 +373,11 @@ impl HeadtrackApp {
             });
 
             ui::disclosure(ui, "socket_cmds", "Command socket", |ui| {
-                ui::note(ui, "The same actions as one-liners; works while a sim has focus.", colors::DIM);
+                ui::note(
+                    ui,
+                    "The same actions as one-liners; works while a sim has focus.",
+                    colors::DIM,
+                );
                 ui.add_space(4.0);
                 copyable_command_grid(
                     ui,
@@ -373,12 +385,16 @@ impl HeadtrackApp {
                     &[
                         ("recenter", "Recenter head tracking"),
                         ("msfs-enabled toggle", "Release or re-grab the MSFS camera"),
-                        ("msfs-seat z 0.01", "Nudge the MSFS seat (x/y/z, \u{00b1} m)"),
+                        (
+                            "msfs-seat z 0.01",
+                            "Nudge the MSFS seat (x/y/z, \u{00b1} m)",
+                        ),
                         ("msfs-seat reset", "Reset this aircraft's MSFS seat"),
                     ],
                 );
                 ui.add_space(6.0);
-                let shell = "printf '<command>' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/headtrack-cmd.sock";
+                let shell =
+                    "printf '<command>' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/headtrack-cmd.sock";
                 ui.horizontal(|ui| {
                     if ui::action_icon(ui, ph::COPY, "Copy the shell form").clicked() {
                         ui.ctx().copy_text(shell.to_string());
@@ -417,23 +433,25 @@ fn short_binding(label: &str) -> String {
 /// Command reference rows, each with a copy button — these are meant to be
 /// pasted, and used to be plain uncopyable text.
 fn copyable_command_grid(ui: &mut egui::Ui, id: &str, rows: &[(&str, &str)]) {
-    egui::Grid::new(id)
-        .spacing([10.0, 4.0])
-        .show(ui, |ui| {
-            for (cmd, desc) in rows {
-                if ui::action_icon(ui, ph::COPY, "Copy to clipboard").clicked() {
-                    ui.ctx().copy_text((*cmd).to_string());
-                }
-                ui.label(
-                    egui::RichText::new(*cmd)
-                        .monospace()
-                        .size(colors::TEXT_SM)
-                        .color(colors::TEXT_HI),
-                );
-                ui.label(egui::RichText::new(*desc).size(colors::TEXT_BODY).color(colors::DIM));
-                ui.end_row();
+    egui::Grid::new(id).spacing([10.0, 4.0]).show(ui, |ui| {
+        for (cmd, desc) in rows {
+            if ui::action_icon(ui, ph::COPY, "Copy to clipboard").clicked() {
+                ui.ctx().copy_text((*cmd).to_string());
             }
-        });
+            ui.label(
+                egui::RichText::new(*cmd)
+                    .monospace()
+                    .size(colors::TEXT_SM)
+                    .color(colors::TEXT_HI),
+            );
+            ui.label(
+                egui::RichText::new(*desc)
+                    .size(colors::TEXT_BODY)
+                    .color(colors::DIM),
+            );
+            ui.end_row();
+        }
+    });
 }
 
 /// The action name at the head of a binding row, in a column exactly `width`
@@ -445,8 +463,12 @@ fn row_label(ui: &mut egui::Ui, text: &str, width: f32) {
         |ui| {
             ui.set_min_width(width);
             ui.add(
-                egui::Label::new(egui::RichText::new(text).size(colors::TEXT_BODY).color(colors::TEXT))
-                    .truncate(),
+                egui::Label::new(
+                    egui::RichText::new(text)
+                        .size(colors::TEXT_BODY)
+                        .color(colors::TEXT),
+                )
+                .truncate(),
             );
         },
     );

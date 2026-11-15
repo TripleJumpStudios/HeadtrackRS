@@ -148,7 +148,7 @@ pub fn build_open(app_name: &str) -> Vec<u8> {
     let name_bytes = app_name.as_bytes();
     let copy_len = name_bytes.len().min(255);
     payload[..copy_len].copy_from_slice(&name_bytes[..copy_len]);
-    
+
     // protocol alias for KittyHawk/MSFS
     payload[261..264].copy_from_slice(b"HK\0");
     // major version
@@ -159,7 +159,7 @@ pub fn build_open(app_name: &str) -> Vec<u8> {
     payload[272..276].copy_from_slice(&62651u32.to_le_bytes());
     // build minor
     payload[276..280].copy_from_slice(&3u32.to_le_bytes());
-    
+
     payload
 }
 
@@ -182,7 +182,9 @@ pub fn build_subscribe_event(client_event_id: u32, event_name: &str) -> Vec<u8> 
 ///   [4..8]  dwSendID    (u32) — send ID of the packet that caused the exception
 ///   [8..12] dwIndex     (u32) — parameter index within that packet
 pub fn parse_recv_exception(payload: &[u8]) -> Option<u32> {
-    if payload.len() < 4 { return None; }
+    if payload.len() < 4 {
+        return None;
+    }
     Some(u32::from_le_bytes(payload[0..4].try_into().ok()?))
 }
 
@@ -193,9 +195,11 @@ pub fn parse_recv_exception(payload: &[u8]) -> Option<u32> {
 ///   [4..8]  uEventID  — the client_event_id we passed in build_subscribe_event
 ///   [8..12] dwData    — event-specific payload (e.g. 1/0 for the "Sim" event)
 pub fn parse_recv_event(payload: &[u8]) -> Option<(u32, u32)> {
-    if payload.len() < 12 { return None; }
+    if payload.len() < 12 {
+        return None;
+    }
     let event_id = u32::from_le_bytes(payload[4..8].try_into().ok()?);
-    let dw_data  = u32::from_le_bytes(payload[8..12].try_into().ok()?);
+    let dw_data = u32::from_le_bytes(payload[8..12].try_into().ok()?);
     Some((event_id, dw_data))
 }
 
@@ -211,9 +215,11 @@ pub fn parse_recv_event(payload: &[u8]) -> Option<(u32, u32)> {
 /// non-Frame events routed through this ID stay parseable via
 /// [`parse_recv_event`]).
 pub fn parse_recv_event_frame_rate(payload: &[u8]) -> Option<(f32, f32)> {
-    if payload.len() < 20 { return None; }
+    if payload.len() < 20 {
+        return None;
+    }
     let frame_rate = f32::from_le_bytes(payload[12..16].try_into().ok()?);
-    let sim_speed  = f32::from_le_bytes(payload[16..20].try_into().ok()?);
+    let sim_speed = f32::from_le_bytes(payload[16..20].try_into().ok()?);
     Some((frame_rate, sim_speed))
 }
 
@@ -258,7 +264,9 @@ pub fn build_camera_get(referential: u32) -> Vec<u8> {
 /// Returns the position (3 × f64, metres) and PBH (3 × f32, degrees) extracted
 /// from the embedded 84-byte `SIMCONNECT_DATA_CAMERA` struct.
 pub fn parse_recv_camera_data(payload: &[u8]) -> Option<([f64; 3], [f32; 3])> {
-    if payload.len() < 84 { return None; }
+    if payload.len() < 84 {
+        return None;
+    }
     let mut pos = [0f64; 3];
     for (i, slot) in pos.iter_mut().enumerate() {
         let o = i * 8;
@@ -299,12 +307,16 @@ pub fn build_camera_set_using_camera_definition(name: &str) -> Vec<u8> {
 /// Returns the item names from this packet; the caller is responsible for
 /// concatenating across multi-packet responses if `dwOutOf > 1`.
 pub fn parse_recv_camera_definition_list(payload: &[u8]) -> Option<Vec<String>> {
-    if payload.len() < 16 { return None; }
+    if payload.len() < 16 {
+        return None;
+    }
     let array_size = u32::from_le_bytes(payload[4..8].try_into().ok()?) as usize;
     let mut names = Vec::with_capacity(array_size);
     for i in 0..array_size {
         let start = 16 + i * 256;
-        if start + 256 > payload.len() { break; }
+        if start + 256 > payload.len() {
+            break;
+        }
         let raw = &payload[start..start + 256];
         let nul = raw.iter().position(|&b| b == 0).unwrap_or(256);
         if let Ok(s) = std::str::from_utf8(&raw[..nul]) {
@@ -374,7 +386,9 @@ pub fn build_camera_set(
 ///
 /// Layout: `[0..4] DWORD acquiredState`, `[4..8] BOOL bGameControlled`.
 pub fn parse_recv_camera_status(payload: &[u8]) -> Option<(u32, bool)> {
-    if payload.len() < 8 { return None; }
+    if payload.len() < 8 {
+        return None;
+    }
     let acquired = u32::from_le_bytes(payload[0..4].try_into().ok()?);
     let game_ctl = u32::from_le_bytes(payload[4..8].try_into().ok()?) != 0;
     Some((acquired, game_ctl))
@@ -448,13 +462,17 @@ pub fn build_request_data_on_sim_object(request_id: u32, define_id: u32, period:
 /// [24..28] dwDefineCount [28..]   data        ← data at 28, NOT 24
 /// ```
 pub fn parse_simobject_data_request_id(payload: &[u8]) -> Option<u32> {
-    if payload.len() < 4 { return None; }
+    if payload.len() < 4 {
+        return None;
+    }
     Some(u32::from_le_bytes(payload[0..4].try_into().ok()?))
 }
 
 /// Extract a STRING256 datum: 256-byte null-padded buffer at offset 28..284.
 pub fn parse_simobject_data_string256(payload: &[u8]) -> Option<String> {
-    if payload.len() < 28 + 256 { return None; }
+    if payload.len() < 28 + 256 {
+        return None;
+    }
     let raw = &payload[28..28 + 256];
     let end = raw.iter().position(|&b| b == 0).unwrap_or(raw.len());
     Some(String::from_utf8_lossy(&raw[..end]).trim().to_string())
@@ -490,10 +508,18 @@ pub fn parse_recv_open_version(payload: &[u8]) -> Option<(u32, u32, u32)> {
 
 /// Returns true if the version from RECV_OPEN is sufficient for the Camera API.
 pub fn version_ok(major: u32, minor: u32, build: u32) -> bool {
-    if major > MIN_VERSION_MAJOR { return true; }
-    if major < MIN_VERSION_MAJOR { return false; }
-    if minor > MIN_VERSION_MINOR { return true; }
-    if minor < MIN_VERSION_MINOR { return false; }
+    if major > MIN_VERSION_MAJOR {
+        return true;
+    }
+    if major < MIN_VERSION_MAJOR {
+        return false;
+    }
+    if minor > MIN_VERSION_MINOR {
+        return true;
+    }
+    if minor < MIN_VERSION_MINOR {
+        return false;
+    }
     build >= MIN_VERSION_BUILD
 }
 
@@ -529,22 +555,39 @@ mod tests {
             let got = f64::from_le_bytes(p[o..o + 8].try_into().unwrap());
             assert_eq!(got, *want, "position[{i}] at offset {o}");
         }
-        assert_eq!(u32::from_le_bytes(p[24..28].try_into().unwrap()), POSITION_REFERENTIAL_EYEPOINT);
+        assert_eq!(
+            u32::from_le_bytes(p[24..28].try_into().unwrap()),
+            POSITION_REFERENTIAL_EYEPOINT
+        );
         assert_eq!(u32::from_le_bytes(p[28..32].try_into().unwrap()), 0);
 
         // TargetedPos is unused and must stay zeroed — a stray value here
         // silently retargets the camera.
-        assert!(p[32..56].iter().all(|&b| b == 0), "TargetedPos must be zero");
+        assert!(
+            p[32..56].iter().all(|&b| b == 0),
+            "TargetedPos must be zero"
+        );
 
         for (i, want) in pbh.iter().enumerate() {
             let o = 56 + i * 4;
             let got = f32::from_le_bytes(p[o..o + 4].try_into().unwrap());
             assert_eq!(got, *want, "pbh[{i}] at offset {o}");
         }
-        assert_eq!(u32::from_le_bytes(p[68..72].try_into().unwrap()), POSITION_REFERENTIAL_EYEPOINT);
+        assert_eq!(
+            u32::from_le_bytes(p[68..72].try_into().unwrap()),
+            POSITION_REFERENTIAL_EYEPOINT
+        );
         assert_eq!(u32::from_le_bytes(p[72..76].try_into().unwrap()), 0);
-        assert_eq!(f64::from_le_bytes(p[76..84].try_into().unwrap()), f64::MAX, "FOV ignore field");
-        assert_eq!(u32::from_le_bytes(p[84..88].try_into().unwrap()), 0x03, "POSITION | ROTATION");
+        assert_eq!(
+            f64::from_le_bytes(p[76..84].try_into().unwrap()),
+            f64::MAX,
+            "FOV ignore field"
+        );
+        assert_eq!(
+            u32::from_le_bytes(p[84..88].try_into().unwrap()),
+            0x03,
+            "POSITION | ROTATION"
+        );
     }
 
     /// Position **and** rotation is the mask that made 6DOF work; the
@@ -555,8 +598,14 @@ mod tests {
         assert_eq!(CAMERA_DATA_MASK_POSITION, 0x01);
         assert_eq!(CAMERA_DATA_MASK_ROTATION, 0x02);
         assert_eq!(CAMERA_DATA_MASK_POSITION | CAMERA_DATA_MASK_ROTATION, 0x03);
-        assert_eq!(POSITION_REFERENTIAL_EYEPOINT, 3, "EYEPOINT is Get/Set-symmetric");
-        assert_eq!(POSITION_REFERENTIAL_SIMOBJECT_DATUM, 4, "the asymmetric one — do not send");
+        assert_eq!(
+            POSITION_REFERENTIAL_EYEPOINT, 3,
+            "EYEPOINT is Get/Set-symmetric"
+        );
+        assert_eq!(
+            POSITION_REFERENTIAL_SIMOBJECT_DATUM, 4,
+            "the asymmetric one — do not send"
+        );
     }
 
     #[test]
@@ -566,9 +615,18 @@ mod tests {
         assert_eq!(u32::from_le_bytes(p[0..4].try_into().unwrap()), 21);
         assert_eq!(&p[4..9], b"TITLE");
         assert_eq!(p[9], 0, "datum name must be null-terminated");
-        assert!(p[260..516].iter().all(|&b| b == 0), "empty units must be all-zero");
-        assert_eq!(u32::from_le_bytes(p[516..520].try_into().unwrap()), DATATYPE_STRING256);
-        assert!(p[520..528].iter().all(|&b| b == 0), "epsilon + datum_id must be zero");
+        assert!(
+            p[260..516].iter().all(|&b| b == 0),
+            "empty units must be all-zero"
+        );
+        assert_eq!(
+            u32::from_le_bytes(p[516..520].try_into().unwrap()),
+            DATATYPE_STRING256
+        );
+        assert!(
+            p[520..528].iter().all(|&b| b == 0),
+            "epsilon + datum_id must be zero"
+        );
     }
 
     /// An over-long name must be truncated, not panic on a slice out of range —
@@ -589,7 +647,11 @@ mod tests {
         assert_eq!(p.len(), 32);
         assert_eq!(u32::from_le_bytes(p[0..4].try_into().unwrap()), 7);
         assert_eq!(u32::from_le_bytes(p[4..8].try_into().unwrap()), 21);
-        assert_eq!(u32::from_le_bytes(p[8..12].try_into().unwrap()), 0, "object id 0 = user aircraft");
+        assert_eq!(
+            u32::from_le_bytes(p[8..12].try_into().unwrap()),
+            0,
+            "object id 0 = user aircraft"
+        );
         assert_eq!(u32::from_le_bytes(p[12..16].try_into().unwrap()), 1);
         assert!(p[16..32].iter().all(|&b| b == 0));
     }
@@ -618,14 +680,24 @@ mod tests {
         let payload = [0xAAu8, 0xBB, 0xCC, 0xDD];
         let pkt = build_packet(MSG_CAMERA_SET, &payload);
         assert_eq!(pkt.len(), 16 + payload.len());
-        assert_eq!(u32::from_le_bytes(pkt[0..4].try_into().unwrap()), pkt.len() as u32);
-        assert_eq!(u32::from_le_bytes(pkt[4..8].try_into().unwrap()), SC_VERSION);
+        assert_eq!(
+            u32::from_le_bytes(pkt[0..4].try_into().unwrap()),
+            pkt.len() as u32
+        );
+        assert_eq!(
+            u32::from_le_bytes(pkt[4..8].try_into().unwrap()),
+            SC_VERSION
+        );
         assert_eq!(
             u32::from_le_bytes(pkt[8..12].try_into().unwrap()),
             0xf000_0000 | MSG_CAMERA_SET,
             "msg id must carry the 0xf0000000 packet-type tag"
         );
-        assert_eq!(u32::from_le_bytes(pkt[12..16].try_into().unwrap()), 0, "send id");
+        assert_eq!(
+            u32::from_le_bytes(pkt[12..16].try_into().unwrap()),
+            0,
+            "send id"
+        );
         assert_eq!(&pkt[16..], &payload);
     }
 }

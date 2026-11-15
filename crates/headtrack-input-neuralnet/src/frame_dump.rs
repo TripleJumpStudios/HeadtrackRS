@@ -164,14 +164,14 @@ impl FrameDumper {
 
 #[cfg(feature = "frame-dump")]
 pub(crate) struct FrameDumper {
-    dir:       PathBuf,
-    csv:       BufWriter<File>,
+    dir: PathBuf,
+    csv: BufWriter<File>,
     frame_idx: u64,
-    line:      String,
+    line: String,
     /// Encode buffer, reused across frames.
-    jpeg:      Vec<u8>,
+    jpeg: Vec<u8>,
     /// Warn once rather than per frame if writes start failing (disk full).
-    warned:    bool,
+    warned: bool,
 }
 
 #[cfg(feature = "frame-dump")]
@@ -203,8 +203,10 @@ impl FrameDumper {
         };
         let mut csv = BufWriter::new(file);
 
-        let mut header = String::from("frame_idx,timestamp_us,yaw,pitch,roll,source,scrfd_ran,\
-             bbox_x,bbox_y,bbox_w,bbox_h,bbox_score");
+        let mut header = String::from(
+            "frame_idx,timestamp_us,yaw,pitch,roll,source,scrfd_ran,\
+             bbox_x,bbox_y,bbox_w,bbox_h,bbox_score",
+        );
         for i in 0..KPS {
             header.push_str(&format!(",kp{i}_x,kp{i}_y"));
         }
@@ -217,7 +219,10 @@ impl FrameDumper {
             return None;
         }
 
-        info!("HEADTRACK_DUMP_FRAMES=1 — full-resolution frame capture -> {}", dir.display());
+        info!(
+            "HEADTRACK_DUMP_FRAMES=1 — full-resolution frame capture -> {}",
+            dir.display()
+        );
         info!("  this is a developer capture: it writes camera imagery and costs frame rate");
         Some(Self {
             dir,
@@ -247,7 +252,9 @@ impl FrameDumper {
         if let Some(img) = rgb {
             if let Err(e) = self.write_jpeg(idx, img) {
                 if !self.warned {
-                    warn!("HEADTRACK_DUMP_FRAMES: frame write failed, further errors suppressed: {e}");
+                    warn!(
+                        "HEADTRACK_DUMP_FRAMES: frame write failed, further errors suppressed: {e}"
+                    );
                     self.warned = true;
                 }
             }
@@ -264,10 +271,19 @@ impl FrameDumper {
             // valid pose and would silently become a data point.
             None => self.line.push_str(",,,"),
         }
-        let _ = write!(self.line, "{},{},", facts.source.as_str(), facts.scrfd_ran as u8);
+        let _ = write!(
+            self.line,
+            "{},{},",
+            facts.source.as_str(),
+            facts.scrfd_ran as u8
+        );
         match facts.bbox {
             Some(b) => {
-                let _ = write!(self.line, "{:.2},{:.2},{:.2},{:.2},{:.4}", b.x, b.y, b.w, b.h, b.score);
+                let _ = write!(
+                    self.line,
+                    "{:.2},{:.2},{:.2},{:.2},{:.4}",
+                    b.x, b.y, b.w, b.h, b.score
+                );
             }
             None => self.line.push_str(",,,,"),
         }
@@ -291,7 +307,12 @@ impl FrameDumper {
         // capture. Deliberately not the preview encoder — that downscales to
         // 320 px wide and would destroy the keypoint precision under test.
         let mut enc = JpegEncoder::new_with_quality(&mut self.jpeg, 92);
-        enc.encode(rgb.as_raw(), rgb.width(), rgb.height(), ExtendedColorType::Rgb8)?;
+        enc.encode(
+            rgb.as_raw(),
+            rgb.width(),
+            rgb.height(),
+            ExtendedColorType::Rgb8,
+        )?;
 
         let path = self.dir.join(format!("frame_{idx:06}.jpg"));
         std::fs::write(path, &self.jpeg)?;

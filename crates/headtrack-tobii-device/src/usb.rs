@@ -405,7 +405,10 @@ mod tests {
     fn os_errors_map_to_typed_kinds() {
         let cases = [
             (nusb::ErrorKind::Busy, UsbErrorKind::Busy),
-            (nusb::ErrorKind::PermissionDenied, UsbErrorKind::PermissionDenied),
+            (
+                nusb::ErrorKind::PermissionDenied,
+                UsbErrorKind::PermissionDenied,
+            ),
             (nusb::ErrorKind::Disconnected, UsbErrorKind::Disconnected),
             (nusb::ErrorKind::NotFound, UsbErrorKind::Disconnected),
             (nusb::ErrorKind::Other, UsbErrorKind::Other),
